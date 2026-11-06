@@ -42,10 +42,19 @@
   @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
 
   .views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:4px}
-  .views button{flex:1;background:none;border:0;border-radius:9px;padding:9px;font-size:14px;font-weight:600;color:var(--muted)}
+  .views button{flex:1;min-width:0;background:none;border:0;border-radius:9px;padding:9px 2px;font-size:13px;font-weight:600;color:var(--muted)}
   .views button.on{background:var(--accent);color:#16141c}
   .tabs{display:flex;gap:6px;margin:14px 0 12px;overflow-x:auto;scrollbar-width:none}
-  #view-stats,#view-history{margin-top:14px}
+  #view-stats,#view-history,#view-upcoming{margin-top:14px}
+  #upcoming h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:20px 2px 8px;display:flex;justify-content:space-between;gap:8px}
+  #upcoming h2 span{text-transform:none;letter-spacing:0;font-weight:500}
+  .up-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+  .up-top .sbtn{color:var(--accent);border-color:var(--accent);flex:none}
+  .uprow{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .uprow .hinfo{flex:1;min-width:0}
+  .uprow .when2{flex:none;text-align:right;font-size:12px;color:var(--muted);line-height:1.35}
+  .uprow .when2 b{display:block;color:var(--accent);font-size:13px}
+  .uprow.ready{border-color:#a998f566}
   #view-home{margin-top:14px}
   .hero{background:linear-gradient(160deg,#2d2545,#1f1c27 70%);border:1px solid var(--line);border-radius:18px;padding:16px;overflow:hidden}
   .hero-top{display:flex;gap:14px;align-items:center}
@@ -217,6 +226,7 @@
 <nav class="views" id="views">
   <button data-view="home" class="on">Home</button>
   <button data-view="shows">Shows</button>
+  <button data-view="upcoming">Upcoming</button>
   <button data-view="stats">Stats</button>
   <button data-view="history">History</button>
 </nav>
@@ -227,6 +237,9 @@
   <nav class="tabs" id="tabs"></nav>
   <div style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
   <main id="list"></main>
+</div>
+<div id="view-upcoming" hidden>
+  <section id="upcoming"></section>
 </div>
 <div id="view-stats" hidden>
   <section class="summary" id="summary"></section>
@@ -696,6 +709,56 @@ function openPicker() {
 function closePicker() { document.getElementById('picker').classList.remove('on'); }
 document.getElementById('pk-close').onclick = closePicker;
 
+// ---------- Upcoming: episodes still to air, plus aired ones you haven't watched ----------
+function relDay(ts) {
+  const d = Math.round((startOfDay(ts) - startOfDay(Date.now())) / DAY);
+  if (d === 0) return 'Today';
+  if (d === 1) return 'Tomorrow';
+  if (d === -1) return 'Yesterday';
+  if (d > 1 && d < 7) return new Date(ts).toLocaleDateString(undefined, { weekday: 'long' });
+  return new Date(ts).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+const inDays = ts => { const d = Math.round((startOfDay(ts) - startOfDay(Date.now())) / DAY); return d <= 0 ? 'today' : d === 1 ? 'tomorrow' : 'in ' + d + ' days'; };
+const clock = ts => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+function renderUpcoming() {
+  const el = document.getElementById('upcoming'); if (!el) return;
+  const now = Date.now(), soon = [], tba = [], ready = [];
+  const airing = SHOWS.filter(s => s.tm);
+  for (const s of airing) {
+    const w = state.shows[s.id] || {};
+    let tbaN = 0;
+    s.seasons.forEach((sea, i) => sea.titles.forEach((t, j) => {
+      const a = sea.airs[j], ep = { s, si: i + 1, e: j + 1, t, a, rt: sea.rts[j] };
+      if (a == null) tbaN++;
+      else if (a > now) soon.push(ep);
+      else if (now - a < 14 * DAY && !w[(i + 1) + '-' + (j + 1)]) ready.push(ep);
+    }));
+    if (tbaN) tba.push({ s, n: tbaN });
+  }
+  soon.sort((a, b) => a.a - b.a); ready.sort((a, b) => b.a - a.a);
+  const row = (x, isReady) => `<button class="uprow${isReady ? ' ready' : ''}" data-goshow="${x.s.id}">${artHTML(x.s, true)}<div class="hinfo">
+      <div class="hname">${esc(x.s.name)}</div><div class="hmeta">S${x.si} E${x.e} · ${esc(x.t)}</div></div>
+      <div class="when2">${isReady ? `<b>Ready</b>Aired ${relDay(x.a)}` : `<b>${inDays(x.a)}</b>${clock(x.a)}`}</div></button>`;
+  const groups = [];
+  for (const x of soon) {
+    const k = isoDate(x.a);
+    if (!groups.length || groups[groups.length - 1].k !== k) groups.push({ k, ts: x.a, items: [] });
+    groups[groups.length - 1].items.push(x);
+  }
+  const anyRunning = airing.some(s => s.tmStatus !== 'Ended');
+  const busy = airing.some(s => syncing.has(s.id));
+  el.innerHTML = `<div class="up-top"><span>${airing.length ? `${plural(airing.length, 'show')} from TVmaze` : ''}</span>
+      ${anyRunning ? `<button class="sbtn" data-syncall="1"${busy ? ' disabled' : ''}>${busy ? 'Syncing…' : '⟳ Check for new episodes'}</button>` : ''}</div>
+    ${ready.length ? `<h2>Ready to watch <span>aired in the last 2 weeks</span></h2>${ready.map(x => row(x, true)).join('')}` : ''}
+    ${groups.length ? groups.map(g => `<h2>${relDay(g.ts)} <span>${Math.round((startOfDay(g.ts) - startOfDay(now)) / DAY) < 7 ? new Date(g.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}</span></h2>${g.items.map(x => row(x)).join('')}`).join('')
+      : `<h2>Coming up</h2><div class="empty small">${airing.length ? 'No air dates announced yet. Check again later, or tap Check for new episodes.' : 'Nothing here yet. Add a show that’s still airing from Shows → ＋ Add a show, and its upcoming episodes will appear here.'}</div>`}
+    ${tba.length ? `<h2>Date not announced</h2>${tba.map(x => `<button class="uprow" data-goshow="${x.s.id}">${artHTML(x.s, true)}<div class="hinfo"><div class="hname">${esc(x.s.name)}</div>
+      <div class="hmeta">${plural(x.n, 'more episode')} listed, no air date yet</div></div></button>`).join('')}` : ''}`;
+}
+async function syncAll() {
+  for (const c of state.custom.slice()) if (c.kind === 'tm' && c.status !== 'Ended') await syncShow(c.id);
+}
+
 // ---------- History view ----------
 function renderHistory() {
   const now = Date.now();
@@ -931,7 +994,7 @@ function renderList() {
   document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
-function render() { renderHome(); renderSummary(); renderTabs(); renderList(); renderHistory(); }
+function render() { renderHome(); renderSummary(); renderTabs(); renderList(); renderUpcoming(); renderHistory(); }
 
 // ---------- Interaction ----------
 // The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
@@ -978,6 +1041,7 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.pick) { openPicker(); return; }
   if (t.dataset.sync) { syncShow(t.dataset.sync); return; }
+  if (t.dataset.syncall) { syncAll(); return; }
   if (t.dataset.pickshow) { state.current = t.dataset.pickshow; closePicker(); changed(); showView('home'); window.scrollTo(0, 0); return; }
   if (t.dataset.goshow) {
     const id = t.dataset.goshow; open.add(id); filter = 'all'; showView('shows'); renderTabs(); renderList();
@@ -1192,7 +1256,7 @@ document.addEventListener('change', ev => {
   changed();
 });
 
-const VIEWS = ['home', 'shows', 'stats', 'history'];
+const VIEWS = ['home', 'shows', 'upcoming', 'stats', 'history'];
 function showView(v) {
   if (!VIEWS.includes(v)) v = 'home';
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
