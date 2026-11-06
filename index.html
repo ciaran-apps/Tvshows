@@ -959,7 +959,7 @@ function artHTML(s, small) {
   return `<div class="${cls}" style="background:linear-gradient(160deg,hsl(${h} 55% 45%),hsl(${h} 50% 22%))">${ini}${poster ? `<img class="poster" src="${poster}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</div>`;
 }
 function posterOf(s) {
-  const u = s.tm ? s.img : state.posters[s.id] && state.posters[s.id].u;
+  const u = (s.tm && s.img) || (state.posters[s.id] && state.posters[s.id].u);
   return okPoster(u) ? u : '';
 }
 const tmIdOf = s => s.tm || (state.posters[s.id] && state.posters[s.id].tm) || 0;
@@ -1191,8 +1191,20 @@ async function afterLoad() {
 async function findPosters() {
   let found = 0;
   for (const s of SHOWS.slice()) {
-    if (s.tm || state.posters[s.id]) continue;
+    if ((s.tm && s.img) || state.posters[s.id]) continue;
     try {
+      if (s.tm) {
+        // Added from TVmaze before posters existed: fetch just the show's details for its poster.
+        const d = await tmGet('/shows/' + s.tm);
+        const u = d.image && okPoster(d.image.medium) ? d.image.medium : '';
+        const c = state.custom.find(x => x.id === s.id);
+        if (c && u) c.img = u;
+        state.posters[s.id] = { u, tm: s.tm };
+        SHOWS = buildShows(state.custom);
+        found++;
+        await new Promise(r => setTimeout(r, 350));
+        continue;
+      }
       const hits = await tmGet('/search/shows?q=' + encodeURIComponent(s.name));
       const yr = d => d.premiered ? +d.premiered.slice(0, 4) : 0;
       const same = d => d.name && d.name.toLowerCase() === s.name.toLowerCase();
