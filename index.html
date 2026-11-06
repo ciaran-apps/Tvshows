@@ -46,6 +46,49 @@
   .views button.on{background:var(--accent);color:#16141c}
   .tabs{display:flex;gap:6px;margin:14px 0 12px;overflow-x:auto;scrollbar-width:none}
   #view-stats,#view-history{margin-top:14px}
+  #view-home{margin-top:14px}
+  .hero{background:linear-gradient(160deg,#2d2545,#1f1c27 70%);border:1px solid var(--line);border-radius:18px;padding:16px;overflow:hidden}
+  .hero-top{display:flex;gap:14px;align-items:center}
+  .hero .art{width:78px;height:116px;font-size:26px;border-radius:11px}
+  .hero-k{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600}
+  .hero-name{font-size:22px;font-weight:700;line-height:1.2;margin:3px 0 4px}
+  .hero-meta{font-size:13px;color:var(--muted)}
+  .hero .bar{height:8px;margin:14px 0 6px}
+  .hero-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+  .hero-row b{color:var(--text)}
+  .upnext{margin-top:16px;background:#0000002e;border:1px solid var(--line);border-radius:14px;padding:14px}
+  .un-k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+  .un-t{font-size:18px;font-weight:600;margin:4px 0 2px;line-height:1.3}
+  .un-m{font-size:13px;color:var(--muted);margin-bottom:12px}
+  .bigbtn{width:100%;background:var(--accent);color:#16141c;border:0;border-radius:12px;padding:14px;font-weight:700;font-size:16px}
+  .bigbtn:active{transform:scale(.99)}
+  .home-links{display:flex;justify-content:space-between;gap:8px;margin-top:10px}
+  .linkbtn{background:none;border:0;color:var(--muted);font-size:13px;padding:6px 2px;text-decoration:underline;text-underline-offset:3px}
+  .hgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .hcell{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .hcell small{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+  .hcell div{font-size:15px;font-weight:600}
+  .hsec{margin-top:16px}
+  .hsec h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 2px 8px}
+  .coming{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .crow{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #ffffff0a;font-size:13.5px;align-items:baseline}
+  .crow:last-child{border-bottom:0}
+  .crow .num{color:var(--muted);font-size:12px;flex:none;width:52px}
+  .crow .ttl{flex:1;min-width:0}
+  .crow .rt{color:var(--muted);font-size:12.5px;flex:none}
+  .donecard{text-align:center;padding:22px 16px}
+  .donecard .big{justify-content:center}
+  .donecard>.art{margin:0 auto}
+  .donecard p{color:var(--muted);font-size:14px;margin:8px 0 16px;line-height:1.5}
+  .sugg{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .sugg .hinfo{flex:1;min-width:0}
+  .sugg .go{color:var(--accent);font-weight:600;font-size:13px;flex:none}
+  .pk-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .pk-head h3{margin:0;font-size:17px}
+  .pk-x{background:none;border:0;color:var(--muted);font-size:16px;padding:4px 8px}
+  #picker>div{max-height:85vh;overflow:auto}
+  .pk-sec{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;margin:12px 2px 6px}
+  .sugg.cur{border-color:var(--accent)}
   .backup{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .backup h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 0 6px}
   .backup p{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5}
@@ -156,11 +199,15 @@
 <div class="sync" id="sync"></div>
 
 <nav class="views" id="views">
-  <button data-view="shows" class="on">Shows</button>
+  <button data-view="home" class="on">Home</button>
+  <button data-view="shows">Shows</button>
   <button data-view="stats">Stats</button>
   <button data-view="history">History</button>
 </nav>
-<div id="view-shows">
+<div id="view-home">
+  <section id="home"></section>
+</div>
+<div id="view-shows" hidden>
   <nav class="tabs" id="tabs"></nav>
   <div style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
   <main id="list"></main>
@@ -193,6 +240,10 @@
   <section id="history"></section>
 </div>
 
+<div class="modal" id="picker"><div>
+  <div class="pk-head"><h3>What are you watching?</h3><button type="button" class="pk-x" id="pk-close" aria-label="Close">✕</button></div>
+  <div id="pk-list"></div>
+</div></div>
 <div class="modal" id="addform"><div>
   <form id="addform-form" novalidate>
     <h3 style="margin:0 0 4px;font-size:17px">Add a show</h3>
@@ -363,7 +414,8 @@ const LS_KEY = 'tvshows.v1';
 // started: showId -> timestamp the current rewatch started (set automatically on first episode, editable)
 // history: logged rewatches [{ h, id, start, end, eps, min }]
 // ended: finish date for shows rewatched before tracking; cleared: those shows reset to start a new rewatch
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [] };
+// current: the show on the Home screen (set when you pick one or tick an episode)
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'all';
@@ -384,8 +436,9 @@ function sanitizeCustom(list) {
   return out;
 }
 function sanitize(d) {
-  const out = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: sanitizeCustom(d && d.custom) };
+  const out = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: sanitizeCustom(d && d.custom), current: null };
   SHOWS = buildShows(out.custom);
+  if (d && typeof d.current === 'string' && SHOWS.some(s => s.id === d.current)) out.current = d.current;
   const okTs = v => typeof v === 'number' && isFinite(v) && v > 0;
   const obj = k => d && typeof d[k] === 'object' && d[k] ? d[k] : {};
   const st = obj('started'), en = obj('ended'), cl = obj('cleared');
@@ -451,6 +504,123 @@ const pad = n => String(n).padStart(2, '0');
 const isoDate = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const fmtDay = ts => new Date(ts).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const showById = id => SHOWS.find(s => s.id === id);
+
+// ---------- Home: the show you're watching now ----------
+// The current show is the one you picked with "Change show", or the one you last ticked an episode on.
+// Shows you'd already rewatched before tracking can't be current until you tap "Watch it again".
+function currentShow() {
+  const pick = state.current && showById(state.current);
+  if (pick && !showStats(pick).virtual) return pick;
+  let best = null, bt = 0;
+  for (const s of SHOWS) {
+    const st = showStats(s);
+    if (st.status !== 'watching') continue;
+    const t = Math.max(st.last || 0, st.start || 0);
+    if (t > bt) { bt = t; best = s; }
+  }
+  return best;
+}
+function watchedSince(ts) {
+  let n = 0, min = 0;
+  for (const s of SHOWS) {
+    const w = state.shows[s.id] || {};
+    for (const k in w) if (w[k] >= ts) { const [si, e] = k.split('-').map(Number); n++; min += rtOfEp(s, si, e); }
+  }
+  return { n, min };
+}
+function upcoming(s, count) {
+  const w = state.shows[s.id] || {}, out = [];
+  s.seasons.forEach((sea, i) => sea.titles.forEach((t, j) => {
+    if (out.length < count && !w[(i + 1) + '-' + (j + 1)]) out.push({ si: i + 1, e: j + 1, t, rt: sea.rts[j], est: sea.est });
+  }));
+  return out;
+}
+function pickable() {
+  return SHOWS.map(s => ({ s, st: showStats(s) })).filter(x => !x.st.virtual && x.st.status !== 'done');
+}
+function suggRow(x, cur) {
+  const { s, st } = x;
+  const meta = st.status === 'watching'
+    ? `Day ${daysSpan(st.start, Date.now())} · ${Math.floor(st.wMin / st.totalMin * 100)}% · ${fmtH(st.totalMin - st.wMin)} left`
+    : `Not started · ${plural(s.seasons.length, 'season')} · ${fmtH(st.totalMin)}`;
+  return `<button class="sugg${cur ? ' cur' : ''}" data-pickshow="${s.id}">${artHTML(s, true)}<div class="hinfo">
+    <div class="hname">${esc(s.name)}</div><div class="hmeta">${meta}</div></div><span class="go">${cur ? 'Watching' : st.status === 'watching' ? 'Continue' : 'Start'}</span></button>`;
+}
+const leftOf = x => x.st.totalMin - x.st.wMin;
+function renderHome() {
+  const el = document.getElementById('home'); if (!el) return;
+  const s = currentShow();
+  const now = Date.now(), today = watchedSince(startOfDay(now)), week = watchedSince(startOfDay(now) - 6 * DAY);
+  const strip = `<div class="hgrid">
+    <div class="hcell"><small>Today</small><div>${fmtH(today.min)}</div></div>
+    <div class="hcell"><small>Last 7 days</small><div>${fmtH(week.min)}</div></div>
+    <div class="hcell"><small>Episodes today</small><div>${today.n}</div></div></div>`;
+  const options = pickable().sort((a, b) => (a.st.status === 'watching' ? 0 : 1) - (b.st.status === 'watching' ? 0 : 1) || leftOf(a) - leftOf(b));
+
+  if (!s) {
+    el.innerHTML = `<div class="hero donecard"><div class="hero-k">Nothing on right now</div>
+      <div class="hero-name" style="margin-top:6px">What are you watching next?</div>
+      <p>Pick a show and it'll live here with your next episode ready to tick off.</p></div>
+      <div class="hsec"><h2>Quickest to finish</h2>${options.slice(0, 4).map(x => suggRow(x)).join('') || '<div class="empty small">Every show is finished. Add a show from the Shows tab.</div>'}
+      ${options.length > 4 ? `<button class="linkbtn" data-pick="1">See all shows</button>` : ''}</div>${strip}`;
+    return;
+  }
+
+  const st = showStats(s);
+  if (st.status === 'done') {
+    const d = daysSpan(st.start, st.last);
+    const next = options.sort((a, b) => leftOf(a) - leftOf(b)).slice(0, 3);
+    el.innerHTML = `<div class="hero donecard">${artHTML(s)}
+      <div class="hero-k" style="margin-top:12px">Finished 🎉</div>
+      <div class="hero-name">${esc(s.name)}</div>
+      <p>${fmtD(st.start)} → ${fmtD(st.last)}<br>You rewatched it in <b style="color:var(--text)">${plural(d, 'day')}</b> · ${fmtH(st.totalMin)} · ${fmtH(st.totalMin / d)} a day</p>
+      <button class="bigbtn" data-pick="1">Pick your next show</button></div>
+      ${next.length ? `<div class="hsec"><h2>Up next?</h2>${next.map(x => suggRow(x)).join('')}</div>` : ''}${strip}`;
+    return;
+  }
+
+  const pct = st.wMin / st.totalMin * 100;
+  const n = st.next, sea = s.seasons[n.si - 1];
+  const head = st.status === 'new' ? 'Ready to start' : `Watching · day ${daysSpan(st.start, now)}`;
+  const perDay = st.status === 'watching' ? st.wMin / daysSpan(st.start, now) : 0;
+  const eta = perDay > 0 ? fmtD(now + (st.totalMin - st.wMin) / perDay * DAY) : '—';
+  const hasTicks = Object.keys(state.shows[s.id] || {}).length > 0;
+  const more = upcoming(s, 4).slice(1);
+  el.innerHTML = `<div class="hero">
+      <div class="hero-top">${artHTML(s)}<div style="min-width:0">
+        <div class="hero-k">${head}</div>
+        <div class="hero-name">${esc(s.name)}</div>
+        <div class="hero-meta">${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps</div></div></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="hero-row"><span><b>${st.wEps}</b>/${st.totalEps} episodes · ${Math.floor(pct)}%</span><span><b>${fmtH(st.totalMin - st.wMin)}</b> left</span></div>
+      <div class="upnext">
+        <div class="un-k">Up next · Season ${n.si}, episode ${n.e}</div>
+        <div class="un-t">${esc(sea.titles[n.e - 1])}</div>
+        <div class="un-m">${sea.est ? '~' : ''}${sea.rts[n.e - 1]} min${n.e === sea.titles.length ? ' · season finale' : ''}</div>
+        <button class="bigbtn" data-next="${s.id}">✓ Watched it</button>
+        <div class="home-links">${hasTicks ? `<button class="linkbtn" data-undo="${s.id}">Undo last episode</button>` : '<span></span>'}
+          <button class="linkbtn" data-goshow="${s.id}">All episodes</button></div>
+      </div></div>
+    <div class="hgrid">
+      <div class="hcell"><small>Today</small><div>${fmtH(today.min)}</div></div>
+      <div class="hcell"><small>Your pace</small><div>${perDay > 0 ? fmtH(perDay) + '/day' : '—'}</div></div>
+      <div class="hcell"><small>Finish by</small><div style="font-size:13.5px">${eta}</div></div></div>
+    ${more.length ? `<div class="hsec"><h2>Coming up</h2><div class="coming">${more.map(x => `<div class="crow"><span class="num">S${x.si} E${x.e}</span><span class="ttl">${esc(x.t)}</span><span class="rt">${x.est ? '~' : ''}${x.rt}m</span></div>`).join('')}</div></div>` : ''}
+    <div class="hsec" style="text-align:center"><button class="linkbtn" data-pick="1">Change show</button></div>`;
+}
+function openPicker() {
+  const cur = currentShow();
+  const opts = pickable();
+  const watching = opts.filter(x => x.st.status === 'watching').sort((a, b) => leftOf(a) - leftOf(b));
+  const fresh = opts.filter(x => x.st.status === 'new').sort((a, b) => leftOf(a) - leftOf(b));
+  document.getElementById('pk-list').innerHTML =
+    (watching.length ? `<div class="pk-sec">In progress</div>${watching.map(x => suggRow(x, cur && cur.id === x.s.id)).join('')}` : '') +
+    (fresh.length ? `<div class="pk-sec">Not started · quickest first</div>${fresh.map(x => suggRow(x, cur && cur.id === x.s.id)).join('')}` : '') +
+    (!opts.length ? `<div class="empty small">Every show is finished. Add a show from the Shows tab, or tap "Watch it again" on a finished one.</div>` : '');
+  document.getElementById('picker').classList.add('on');
+}
+function closePicker() { document.getElementById('picker').classList.remove('on'); }
+document.getElementById('pk-close').onclick = closePicker;
 
 // ---------- History view ----------
 function renderHistory() {
@@ -657,7 +827,7 @@ function watchArt(s) {
 }
 async function setArt(id, dataUrl) {
   if (dataUrl) art[id] = dataUrl; else delete art[id];
-  saveArtLocal(); renderList(); renderHistory();
+  saveArtLocal(); renderList(); renderHistory(); renderHome();
   if (artRefs && artRefs[id]) {
     try { dataUrl ? await artRefs[id].set({ img: dataUrl }) : await artRefs[id].delete(); }
     catch (e) { setSync('Couldn’t save the picture to your account — kept on this device'); }
@@ -677,7 +847,7 @@ function renderList() {
   document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
-function render() { renderSummary(); renderTabs(); renderList(); renderHistory(); }
+function render() { renderHome(); renderSummary(); renderTabs(); renderList(); renderHistory(); }
 
 // ---------- Interaction ----------
 // The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
@@ -699,21 +869,34 @@ document.addEventListener('click', ev => {
     if (showStats(showById(id)).virtual) return;   // already rewatched: use "Watch it again" to start a new rewatch
     const m = watchedMap(id), k = si + '-' + e;
     seasonOpen.set(id + '|' + si, true);
-    if (m[k]) delete m[k]; else { m[k] = Date.now(); ensureStarted(id, m[k]); }
+    if (m[k]) delete m[k]; else { m[k] = Date.now(); ensureStarted(id, m[k]); state.current = id; }
     changed(); return;
   }
   if (t.dataset.season) {
     const [id, si, on] = t.dataset.season.split('|'), s = showById(id), m = watchedMap(id), now = Date.now();
     for (let e = 1; e <= epCount(s, +si); e++) { const k = si + '-' + e; if (on === '1') { if (!m[k]) m[k] = now; } else delete m[k]; }
-    if (on === '1') ensureStarted(id, now);
+    if (on === '1') { ensureStarted(id, now); state.current = id; }
     changed(); return;
   }
   if (t.dataset.next) {
     const s = showById(t.dataset.next), st = showStats(s);
-    if (st.next) { const now = Date.now(); watchedMap(s.id)[st.next.si + '-' + st.next.e] = now; ensureStarted(s.id, now); }
+    if (st.next) { const now = Date.now(); watchedMap(s.id)[st.next.si + '-' + st.next.e] = now; ensureStarted(s.id, now); state.current = s.id; }
     changed(); return;
   }
-  if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); changed(); return; }
+  if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); state.current = t.dataset.startnow; changed(); return; }
+  if (t.dataset.undo) {
+    const m = state.shows[t.dataset.undo] || {}; let lk = null;
+    for (const k in m) if (!lk || m[k] > m[lk]) lk = k;
+    if (lk) { delete m[lk]; changed(); }
+    return;
+  }
+  if (t.dataset.pick) { openPicker(); return; }
+  if (t.dataset.pickshow) { state.current = t.dataset.pickshow; closePicker(); changed(); showView('home'); window.scrollTo(0, 0); return; }
+  if (t.dataset.goshow) {
+    const id = t.dataset.goshow; open.add(id); filter = 'all'; showView('shows'); renderTabs(); renderList();
+    setTimeout(() => { const el = document.getElementById('show-' + id); if (el) el.scrollIntoView({ block: 'start' }); }, 30);
+    return;
+  }
   if (t.dataset.log) {
     const s = showById(t.dataset.log);
     confirmBox(`Save this rewatch of ${s.name} to History and clear its episodes so you can watch it again?`, 'Log it', () => {
@@ -814,9 +997,9 @@ document.addEventListener('change', ev => {
   changed();
 });
 
-const VIEWS = ['shows', 'stats', 'history'];
+const VIEWS = ['home', 'shows', 'stats', 'history'];
 function showView(v) {
-  if (!VIEWS.includes(v)) v = 'shows';
+  if (!VIEWS.includes(v)) v = 'home';
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
@@ -840,7 +1023,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -905,7 +1088,7 @@ async function flush() {
   if (!ref || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, updated: Date.now() });
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, updated: Date.now() });
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
@@ -945,7 +1128,7 @@ else Cloud.onUser(u => {
       if (!snap.metadata.fromCache) setSync('Synced to your account · ' + (u.email || ''));
     } else if (!snap.metadata.fromCache && firstSnap) {
       // Nothing in your account yet: upload what's on this device.
-      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length;
+      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.current;
       if (hasLocal) { dirty = true; flush(); }
       else setSync('Synced to your account · ' + (u.email || ''));
     }
