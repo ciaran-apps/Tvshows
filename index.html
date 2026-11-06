@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme:dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Shows</title>
+<meta name="description" content="Track your TV rewatches: every episode, how long each show takes and your watch history.">
+<meta name="theme-color" content="#16141c">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="cloud.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16141c; --card:#201d28; --card2:#2a2634; --line:#353041;
+    --text:#ece9f3; --muted:#9a94a8; --accent:#a998f5; --accent-d:#6f5fc4;
+    --done:#6fcf97; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  body{padding:16px 14px 60px;max-width:720px;margin:0 auto}
+  button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  h1{font-size:26px;font-weight:600;color:var(--accent);margin:4px 2px 2px}
+  .sync{font-size:12px;color:var(--muted);margin:0 2px 14px;min-height:16px}
+
+  .summary{background:linear-gradient(135deg,#2b2440,#201d28);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .big b{font-size:30px;font-weight:700}
+  .big span{color:var(--muted);font-size:14px}
+  .bar{height:8px;background:#ffffff14;border-radius:99px;overflow:hidden;margin:10px 0 14px}
+  .bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+  .bar.done i{background:var(--done)}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{background:#ffffff0a;border-radius:10px;padding:10px 12px}
+  .stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .stat div{font-size:16px;font-weight:600}
+  @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
+
+  .views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:4px}
+  .views button{flex:1;background:none;border:0;border-radius:9px;padding:9px;font-size:14px;font-weight:600;color:var(--muted)}
+  .views button.on{background:var(--accent);color:#16141c}
+  .tabs{display:flex;gap:6px;margin:14px 0 12px;overflow-x:auto;scrollbar-width:none}
+  #view-stats,#view-history{margin-top:14px}
+  .backup{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .backup h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 0 6px}
+  .backup p{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+  .bk-btns{display:flex;flex-wrap:wrap;gap:8px}
+  .bk-btns button,.bk-file{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer}
+  .bk-btns .bk-go{background:var(--accent);border-color:var(--accent);color:#16141c}
+  .bk-file input{display:none}
+  .bk-out{margin-top:12px}
+  .bk-out textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:12px/1.4 ui-monospace,Menlo,monospace;margin-bottom:8px;resize:vertical}
+  .bk-msg{font-size:12.5px;color:var(--accent);min-height:16px}
+  .art.sm{width:40px;height:60px;font-size:14px;border-radius:7px}
+  #history h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:20px 2px 8px}
+  #history h2:first-child{margin-top:0}
+  .hrow{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .hinfo{flex:1;min-width:0}
+  .hname{font-weight:600;font-size:15px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .hmeta{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .hmeta b{color:var(--text);font-weight:600}
+  .hdel{background:none;border:0;color:var(--muted);font-size:14px;padding:6px;flex:none}
+  .lday{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+  .lhead{display:flex;justify-content:space-between;gap:8px;padding:9px 12px;font-size:13px;font-weight:600;border-bottom:1px solid var(--line)}
+  .lhead span:last-child{color:var(--muted);font-weight:500}
+  .litem{padding:7px 12px;font-size:13px;color:var(--muted);border-bottom:1px solid #ffffff08}
+  .litem:last-child{border-bottom:0}
+  .lshow{color:var(--text);font-weight:500}
+  .empty.small{padding:14px;font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:12px}
+  .startbtn,.logbtn{width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-weight:600;font-size:14px;margin-bottom:12px}
+  .logbtn{border-color:var(--done);color:var(--done)}
+  .startrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .startrow input{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;color-scheme:dark}
+  .tabs button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 14px;font-size:13px;white-space:nowrap;color:var(--muted)}
+  .tabs button.on{background:var(--accent);border-color:var(--accent);color:#16141c;font-weight:600}
+
+  .show{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+  .head{display:block;width:100%;text-align:left;background:none;border:0;padding:14px 14px 12px}
+  .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .name{font-size:17px;font-weight:600}
+  .meta{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .pill{font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:#ffffff12;color:var(--muted);white-space:nowrap}
+  .pill.watching{background:#a998f533;color:var(--accent)}
+  .pill.done{background:#6fcf9726;color:var(--done)}
+  .head .bar{margin:10px 0 6px;height:6px}
+  .row2{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+  .row2 b{color:var(--text);font-weight:600}
+
+  .hwrap{display:flex;gap:12px;align-items:stretch}
+  .hwrap .info{flex:1;min-width:0}
+  .art{width:58px;height:86px;flex:none;border-radius:9px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#fff;letter-spacing:.02em;box-shadow:0 2px 8px #0006}
+  .art img{width:100%;height:100%;object-fit:cover;display:block}
+  .picrow{display:flex;gap:8px;margin:-2px 0 12px}
+  .picrow label,.picrow button{background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--muted);cursor:pointer}
+  .picrow input{display:none}
+  .body{border-top:1px solid var(--line);padding:12px 14px 14px;display:none}
+  .show.open .body{display:block}
+  .next{width:100%;background:var(--accent);color:#16141c;border:0;border-radius:10px;padding:11px;font-weight:600;font-size:14px;margin-bottom:12px}
+  .next:active{transform:scale(.99)}
+  .timing{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+  .timing b{color:var(--text);font-weight:600}
+  .season{margin-bottom:14px}
+  .shead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .shead .t{font-size:14px;font-weight:600}
+  .shead .t span{color:var(--muted);font-weight:400;font-size:12.5px;margin-left:6px}
+  .sbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--muted)}
+  .season{background:#ffffff06;border:1px solid var(--line);border-radius:11px;padding:0;margin-bottom:8px;overflow:hidden}
+  .shead{margin:0;padding:10px 12px;gap:8px}
+  .stog{flex:1;text-align:left;background:none;border:0;padding:0;display:flex;align-items:center;gap:8px;min-width:0}
+  .stog .chev{color:var(--muted);font-size:11px;transition:transform .2s;flex:none}
+  .season.sopen .stog .chev{transform:rotate(90deg)}
+  .sbar{height:3px;background:#ffffff10}
+  .sbar i{display:block;height:100%;background:var(--accent)}
+  .sbar.done i{background:var(--done)}
+  .eps{display:none;border-top:1px solid var(--line)}
+  .season.sopen .eps{display:block}
+  .ep{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #ffffff0a;padding:9px 12px;min-height:46px}
+  .ep:last-child{border-bottom:0}
+  .ep .box{width:22px;height:22px;flex:none;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent}
+  .ep.w .box{background:var(--accent-d);border-color:var(--accent-d);color:#fff}
+  .ep .num{color:var(--muted);font-size:12px;width:28px;flex:none;font-variant-numeric:tabular-nums}
+  .ep .ttl{flex:1;font-size:14px;line-height:1.3;min-width:0}
+  .ep.w .ttl{color:var(--muted)}
+  .ep .rt{color:var(--muted);font-size:12.5px;flex:none;font-variant-numeric:tabular-nums}
+  .ep.nx{background:#a998f514}
+  .ep.nx .box{border-color:var(--accent)}
+  .ep .when{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+  .note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+  .reset{background:none;border:0;color:#e57373;font-size:12px;padding:6px 0 0;opacity:.8}
+  .empty{color:var(--muted);text-align:center;padding:30px 0;font-size:14px}
+  .modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+  .modal.on{display:flex}
+  .modal>div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;max-width:340px;width:100%}
+  .modal p{margin:0 0 16px;font-size:14px;line-height:1.5}
+  .modal .btns{display:flex;gap:8px;justify-content:flex-end;padding:0;border:0;background:none}
+  .modal button{border:0;border-radius:8px;padding:8px 14px;font-weight:600}
+  .addbtn{width:100%;background:none;border:1px dashed var(--line);color:var(--accent);border-radius:var(--radius);padding:14px;font-weight:600;font-size:14px;margin:4px 0 10px}
+  .fl{display:block;font-size:13px;font-weight:500;margin-bottom:12px}
+  .fl span{color:var(--muted);font-weight:400}
+  .fl input{display:block;width:100%;margin-top:5px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:10px 11px;font:inherit;font-size:16px}
+  .fl input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  .fprev{font-size:12.5px;color:var(--accent);min-height:16px;margin:-2px 0 6px}
+  .ferr{font-size:12.5px;color:#e57373;min-height:16px;margin-bottom:8px}
+  .modal .add{background:var(--accent);color:#16141c}
+  #addform>div{max-height:90vh;overflow:auto}
+  .modal .no{background:var(--card2)} .modal .yes{background:#e57373;color:#16141c}
+</style>
+</head>
+<body>
+<h1>TV Shows</h1>
+<div class="sync" id="sync"></div>
+
+<nav class="views" id="views">
+  <button data-view="shows" class="on">Shows</button>
+  <button data-view="stats">Stats</button>
+  <button data-view="history">History</button>
+</nav>
+<div id="view-shows">
+  <nav class="tabs" id="tabs"></nav>
+  <div style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
+  <main id="list"></main>
+</div>
+<div id="view-stats" hidden>
+  <section class="summary" id="summary"></section>
+  <section class="backup">
+    <h2>Backup</h2>
+    <p>A backup holds your ticked episodes, start and finish dates, History and any shows you've added (not pictures). Use it to move your progress to the TV Shows app or keep a copy.</p>
+    <div class="bk-btns">
+      <button type="button" data-bk="copy">Copy backup</button>
+      <button type="button" data-bk="download" id="bk-download">Download file</button>
+      <button type="button" data-bk="import">Import backup</button>
+    </div>
+    <div id="bk-out" class="bk-out" hidden>
+      <textarea id="bk-text" rows="5" spellcheck="false" aria-label="Backup text"></textarea>
+      <div class="bk-msg" id="bk-msg" role="status"></div>
+    </div>
+    <div id="bk-in" class="bk-out" hidden>
+      <textarea id="bk-paste" rows="5" spellcheck="false" placeholder="Paste a backup here, or choose a file" aria-label="Paste backup"></textarea>
+      <div class="bk-btns">
+        <label class="bk-file">Choose file<input type="file" accept=".json,application/json,text/plain" id="bk-file"></label>
+        <button type="button" data-bk="restore" class="bk-go">Restore this backup</button>
+      </div>
+      <div class="bk-msg" id="bk-imsg" role="status"></div>
+    </div>
+  </section>
+</div>
+<div id="view-history" hidden>
+  <section id="history"></section>
+</div>
+
+<div class="modal" id="addform"><div>
+  <form id="addform-form" novalidate>
+    <h3 style="margin:0 0 4px;font-size:17px">Add a show</h3>
+    <p style="margin:0 0 14px;font-size:12.5px;color:var(--muted)">Episodes will be numbered and use the length you enter. Ask Claude to add real titles and runtimes.</p>
+    <label class="fl">Show name<input id="f-name" maxlength="60" autocomplete="off" placeholder="e.g. The Sopranos"></label>
+    <label class="fl">Network <span>(optional)</span><input id="f-net" maxlength="40" autocomplete="off" placeholder="e.g. HBO"></label>
+    <label class="fl">Episodes in each season<input id="f-eps" inputmode="numeric" autocomplete="off" placeholder="e.g. 13, 13, 13, 13, 13, 21"></label>
+    <label class="fl">Typical episode length (minutes)<input id="f-rt" type="number" inputmode="numeric" min="1" max="300" placeholder="e.g. 55"></label>
+    <div id="f-prev" class="fprev"></div>
+    <div id="f-err" class="ferr" role="alert"></div>
+    <div class="btns"><button type="button" class="no" id="f-cancel">Cancel</button><button type="submit" class="add">Add show</button></div>
+  </form>
+</div></div>
+<div class="modal" id="modal"><div><p id="mtext"></p><div class="btns"><button class="no" id="mno">Cancel</button><button class="yes" id="myes">Reset</button></div></div></div>
+
+<script>
+// ---------- Show data ----------
+// Each season: [episode titles joined by "|", runtime in minutes (one number for every episode, or one per episode), estimated?]
+// Runtimes come from TheTVDB / store listings. Seasons marked estimated use a typical length where per-episode figures weren't available.
+const RAW = [
+  {id:'archer', name:'Archer', net:'FX / FXX', s:[
+    ['Mole Hunt|Training Day|Diversity Hire|Killing Utne|Honeypot|Skorpio|Skytanic|The Rock|Job Offer|Dial M for Mother',21,1],
+    ['Swiss Miss|A Going Concern|Blood Test|Pipeline Fever|The Double Deuce|Tragical History|Movie Star|Stage Two|Placebo Effect|El Secuestro|Jeu Monégasque|White Nights|Double Trouble',21,1],
+    ['Heart of Archness (1)|Heart of Archness (2)|Heart of Archness (3)|The Man from Jupiter|El Contador|The Limited|Drift Problem|Lo Scandalo|Bloody Ferlin|Crossing Over|Skin Game|Space Race (1)|Space Race (2)',[22,20,20,21,21,21,21,21,21,21,21,21,21],1],
+    ['Fugue and Riffs|The Wind Cries Mary|Legs|Midnight Ron|Viscous Coupling|Once Bitten|Live and Let Dine|Coyote Lovely|The Honeymooners|Un Chien Tangerine|The Papal Chase|Sea Tunt (1)|Sea Tunt (2)',21,1],
+    ["White Elephant|A Kiss While Dying|A Debt of Honor|House Call|Southbound and Down|Baby Shower|Smugglers' Blues|The Rules of Extraction|On the Carpet|Palace Intrigue (1)|Palace Intrigue (2)|Filibuster|Arrivals/Departures",21,1],
+    ["The Holdout|Three to Tango|The Archer Sanction|Edie's Wedding|Vision Quest|Sitting|Nellis|The Kanes|Pocket Listing|Reignition Sequence|Achub Y Morfilod|Drastic Voyage (1)|Drastic Voyage (2)",21,1],
+    ['The Figgis Agency|The Handoff|Deadly Prep|Motherless Child|Bel Panto (1)|Bel Panto (2)|Double Indecency|Liquid Lunch|Deadly Velvet (1)|Deadly Velvet (2)',21,1],
+    ['No Good Deed|Berenice|Jane Doe|Ladyfingers|Sleepers Wake|Waxing Gibbous|Gramercy, Halberd!|Auflösung',[20,19,20,21,20,20,18,19]],
+    ['Strange Pilot|Disheartening Situation|Different Modes of Preparing the Fruit|A Warrior in Costume|Strange Doings in the Taboo Groves|Some Remarks on Cannibalism|Comparative Wickedness of Civilized and Unenlightened Peoples|A Discovery',21,1],
+    ['Bort the Garj|Happy Borthday|The Leftovers|Dining with the Zarglorp|Mr. Deadly Goes to Town|Road Trip|Space Pirates|Cubert|Robert De Niro',21,1],
+    ['The Orpheus Gambit|Bloodsploosh|Helping Hands|Robot Factory|Best Friends|The Double Date|Caught Napping|Cold Fusion',[24,20,22,24,23,22,22,23]],
+    ['Identity Crisis|Lowjacked|London Time|Photo Op|Shots|Dingo, Baby, et Cetera|Colt Express|Mission: Difficult',[23,21,23,23,22,22,22,24]],
+    ["The Big Con|Operation: Fang|Saturday|Laws of Attraction|Out of Network|Bank Run at Mr. Bank's Bank|Distraction Action|Dough, Ray, and Me",[23,22,22,22,22,23,23,22]],
+    ['The Anglerfish Stratagem|30 for 30|Plaque Removal|Chill Barry|Keys Open Doors|Face Off|Mission Out of Control Room|Breaking Fabian|Into the Cold (series finale)',[23,23,23,24,23,23,23,23,65]],
+  ]},
+  {id:'arrested', name:'Arrested Development', net:'FOX / Netflix', s:[
+    ["Pilot|Top Banana|Bringing Up Buster|Key Decisions|Charity Drive|Visiting Ours|In God We Trust|My Mother, the Car|Storming the Castle|Pier Pressure|Public Relations|Marta Complex|Beef Consommé|Shock and Aww|Staff Infection|Altar Egos|Justice Is Blind|Missing Kitty|Best Man for the Gob|Whistler's Mother|Not Without My Daughter|Let 'Em Eat Cake",22,1],
+    ['The One Where Michael Leaves|The One Where They Build a House|¡Amigos!|Good Grief|Sad Sack|Afternoon Delight|Switch Hitter|Queen for a Day|Burning Love|Ready, Aim, Marry Me|Out on a Limb|Hand to God|Motherboy XXX|The Immaculate Election|Sword of Destiny|Meat the Veals|Spring Breakout|Righteous Brothers',22,1],
+    ["The Cabin Show|For British Eyes Only|Forget Me Now|Notapusy|Mr. F|The Ocean Walker|Prison Break-In|Making a Stand|S.O.B.s|Fakin' It|Family Ties|Exit Strategy|Development Arrested",22,1],
+    ['Flight of the Phoenix|Borderline Personalities|Indian Takers|The B. Team|A New Start|Double Crossers|Colony Collapse|Red Hairing|Smashed|Queen B.|A New Attitude|Señoritis|It Gets Better|Off the Hook|Blockheads',32,1],
+    ['Family Leave|Self-Deportation|Everyone Gets Atrophy|An Old Start|Sinking Feelings|Emotional Baggage|Rom-Traum|Premature Independence|Unexpected Company|Taste Makers|Chain Migration|Check Mates|The Untethered Sole|Saving for Arraignment Day|Courting Disasters|The Fallout',[26,28,27,28,27,33,31,36,27,25,23,25,28,28,30,47]],
+  ]},
+  {id:'banshee', name:'Banshee', net:'Cinemax', s:[
+    ['Pilot|The Rave|Meet the New Boss|Half Deaf Is Better Than All Dead|The Kindred|Wicks|Behold a Pale Rider|We Shall Live Forever|Always the Cowboy|A Mixture of Madness',55,1],
+    ['Little Fish|The Thunder Man|The Warrior Class|Bloodlines|The Truth About Unicorns|Armies of One|Ways to Bury a Man|Evil for Evil|Homecoming|Bullets and Tears',55,1],
+    ["The Fire Trials|Snakes and Whatnot|A Fixer of Sorts|Real Life Is the Nightmare|Tribal|We Were All Someone Else Yesterday|You Can't Hide from the Dead|All the Wisdom I Got Left|Even God Doesn't Know What to Make of You|We All Pay Eventually",55,1],
+    ['Something Out of the Bible|The Burden of Beauty|The Book of Job|Innocent Might Be a Bit of a Stretch|A Little Late to Grow a Pair|Only One Way a Dogfight Ends|Truths Other Than the Ones You Tell Yourself|Requiem',55,1],
+  ]},
+  {id:'barry', name:'Barry', net:'HBO', s:[
+    ['Chapter One: Make Your Mark|Chapter Two: Use It|Chapter Three: Make the Unsafe Choice|Chapter Four: Commit… to YOU|Chapter Five: Do Your Job|Chapter Six: Listen with Your Ears, React with Your Face|Chapter Seven: Loud, Fast, and Keep Going|Chapter Eight: Know Your Truth',[30,26,30,29,29,30,32,33]],
+    ['The Show Must Go On, Probably?|The Power of No|Past = Present x Future Over Yesterday|What?!|ronny/lily|The Truth Has a Ring to It|The Audition|berkman > block',[33,30,28,31,33,29,29,35]],
+    ['forgiving jeff|limonada|ben mendelsohn|all the sauces|crazytimesh*tshow|710N|candy asses|starting now',[29,28,25,31,28,29,34,29]],
+    ["yikes|bestest place on the earth|you're charming|it takes a psycho|tricky legacies|the wizard|a nice meal|wow",[26,30,32,33,33,30,29,34]],
+  ]},
+  {id:'boardwalk', name:'Boardwalk Empire', net:'HBO', s:[
+    ['Boardwalk Empire|The Ivory Tower|Broadway Limited|Anastasia|Nights in Ballygran|Family Limitation|Home|Hold Me in Paradise|Belle Femme|The Emerald City|Paris Green|A Return to Normalcy',[72,53,51,54,53,59,53,49,53,59,56,60]],
+    ['21|Ourselves Alone|A Dangerous Maid|What Does the Bee Do?|Gimcrack & Bunkum|The Age of Reason|Peg of Old|Two Boats and a Lifeguard|Battle of the Century|Georgia Peaches|Under God\'s Power She Flourishes|To the Lost',[54,58,56,57,50,58,58,60,49,59,59,57]],
+    ["Resolution|Spaghetti & Coffee|Bone for Tuna|Blue Bell Boy|You'd Be Surprised|Ging Gang Goolie|Sunday Best|The Pony|The Milkmaid's Lot|A Man, a Plan…|Two Impostors|Margate Sands",[57,58,55,56,58,56,58,58,53,57,49,60]],
+    ['New York Sour|Resignation|Acres of Diamonds|All In|Erlkönig|The North Star|William Wilson|The Old Ship of Zion|Marriage and Hunting|White Horse Pike|Havre de Grace|Farewell Daddy Blues',[59,58,56,56,59,58,57,58,56,53,58,56]],
+    ['Golden Days for Boys and Girls|The Good Listener|What Jesus Said|Cuanto|King of Norway|Devil You Know|Friendless Child|Eldorado',[58,55,54,58,54,57,57,59]],
+  ]},
+  {id:'curb', name:'Curb Your Enthusiasm', net:'HBO', s:[
+    ['The Pants Tent|Ted and Mary|Porno Gil|The Bracelet|Interior Decorator|The Wire|AAMCO|Beloved Aunt|Affirmative Action|The Group',[29,28,28,28,29,29,27,30,30,31]],
+    ['The Car Salesman|Thor|Trick or Treat|The Shrimp Incident|The Thong|The Acupuncturist|The Doll|Shaq|The Baptism|The Massage',[30,28,30,29,28,30,29,30,30,29]],
+    ["Chet's Shirt|The Benadryl Brownie|Club Soda and Salt|The Nanny from Hell|The Terrorist Attack|The Special Section|The Corpse-Sniffing Dog|Krazee-Eyez Killa|Mary, Joseph and Larry|The Grand Opening",[26,29,29,29,29,29,29,29,29,29],1],
+    ["Mel's Offer|Ben's Birthday Party|The Blind Date|The Weatherman|The 5 Wood|The Car Pool Lane|The Surrogate|Wandering Bear|The Survivor|Opening Night",[30,30,30,30,30,30,30,29,30,59],1],
+    ['The Larry David Sandwich|The Bowtie|The Christ Nail|Kamikaze Bingo|Lewis Needs a Kidney|The Smoking Jacket|The Seder|The Ski Lift|The Korean Bookie|The End',[30,30,29,30,30,30,30,34,29,42]],
+    ['Meet the Blacks|The Anonymous Donor|The Ida Funkhouser Roadside Memorial|The Lefty Call|The Freak Book|The Rat Dog|The TiVo Guy|The N Word|The Therapists|The Bat Mitzvah',30,1],
+    ["Funkhouser's Crazy Sister|Vehicular Fellatio|The Reunion|The Hot Towel|Denise Handicap|The Bare Midriff|The Black Swan|Officer Krupke|The Table Read|Seinfeld",[30,30,31,30,30,30,30,30,30,45],1],
+    ['The Divorce|The Safe House|Palestinian Chicken|The Smiley Face|Vow of Silence|The Hero|The Bi-Sexual|Car Periscope|Mister Softee|Larry vs. Michael J. Fox',[30,29,30,30,29,30,30,30,33,30]],
+    ['Foisted!|The Pickle Gambit|A Disturbance in the Kitchen|Running with the Bulls|Thank You for Your Service|The Accidental Text on Purpose|Namaste|Never Wait for Seconds!|The Shucker|Fatwa!',[37,35,33,32,33,38,34,34,44,49]],
+    ["Happy New Year|Side Sitting|Artificial Fruit|You're Not Going to Get Me to Say Anything Bad About Mickey|Insufficient Praise|The Surprise Party|The Ugly Section|Elizabeth, Margaret and Larry|Beep Panic|The Spite Store",[37,34,38,45,38,38,36,38,36,40]],
+    ['The Five-Foot Fence|Angel Muffin|The Mini Bar|The Watermelon|IRASSHAIMASE!|Man Fights Tiny Woman|Irma Kostroski|What Have I Done?|Igor, Gregor, & Timor|The Mormon Advantage',[30,34,37,39,35,35,33,40,34,38]],
+    ['Atlanta|The Lawn Jockey|Vertical Drop, Horizontal Tug|Disgruntled|Fish Stuck|The Gettysburg Address|The Dream Scheme|The Colostomy Bag|Ken/Kendra|No Lessons Learned',[35,33,39,32,41,38,39,32,35,53]],
+  ]},
+  {id:'gotham', name:'Gotham', net:'FOX', s:[
+    ["Pilot|Selina Kyle|The Balloonman|Arkham|Viper|Spirit of the Goat|Penguin's Umbrella|The Mask|Harvey Dent|Lovecraft|Rogues' Gallery|What the Little Bird Told Him|Welcome Back, Jim Gordon|The Fearsome Dr. Crane|The Scarecrow|The Blind Fortune Teller|Red Hood|Everyone Has a Cobblepot|Beasts of Prey|Under the Knife|The Anvil or the Hammer|All Happy Families Are Alike",43,1],
+    ["Damned If You Do…|Knock, Knock|The Last Laugh|Strike Force|Scarification|By Fire|Mommy's Little Monster|Tonight's the Night|A Bitter Pill to Swallow|The Son of Gotham|Worse Than a Crime|Mr. Freeze|A Dead Man Feels No Cold|This Ball of Mud and Meanness|Mad Grey Dawn|Prisoners|Into the Woods|Pinewood|Azrael|Unleashed|A Legion of Horribles|Transference",43,1],
+    ['Better to Reign in Hell…|Burn the Witch…|Look Into My Eyes|New Day Rising|Anything for You|Follow the White Rabbit|Red Queen|Blood Rush|The Executioner|Time Bomb|Beware the Green-Eyed Monster|Ghosts|Smile Like You Mean It|The Gentle Art of Making Enemies|How the Riddler Got His Name|These Delicate and Dark Obsessions|The Primal Riddle|Light the Wick|All Will Be Judged|Pretty Hate Machine|Destiny Calling|Heavydirtysoul',43,1],
+    ["Pax Penguina|The Fear Reaper|They Who Hide Behind Masks|The Demon's Head|The Blade's Path|Hog Day Afternoon|A Day in the Narrows|Stop Hitting Yourself|Let Them Eat Pie|Things That Go Boom|Queen Takes Knight|Pieces of a Broken Mirror|A Beautiful Darkness|Reunion|The Sinking Ship, The Grand Applause|One of My Three Soups|Mandatory Brunch Meeting|That's Entertainment|To Our Deaths and Beyond|That Old Corpse|One Bad Day|No Man's Land",43,1],
+    ["Year Zero|Trespassers|Penguin, Our Hero|Ruin|Pena Dura|13 Stitches|Ace Chemicals|Nothing's Shocking|The Trial of Jim Gordon|I Am Bane|They Did What?|The Beginning…",43,1],
+  ]},
+  {id:'succession', name:'Succession', net:'HBO', s:[
+    ['Celebration|Sh*t Show at the F**k Factory|Lifeboats|Sad Sack Wasp Trap|I Went to Market|Which Side Are You On?|Austerlitz|Prague|Pre-Nuptial|Nobody Is Ever Missing',[61,58,57,59,56,59,58,57,59,66]],
+    ['The Summer Palace|Vaulter|Hunting|Safe Room|Tern Haven|Argestes|Return|Dundee|DC|This Is Not for Tears',[60,58,60,59,60,58,59,60,61,69]],
+    ['Secession|Mass in Time of War|The Disruption|Lion in the Meadow|Retired Janitors of Idaho|What It Takes|Too Much Birthday|Chiantishire|All the Bells Say',[58,60,59,59,61,59,59,65,66]],
+    ["The Munsters|Rehearsal|Connor's Wedding|Honeymoon States|Kill List|Living+|Tailgate Party|America Decides|Church and State|With Open Eyes",[60,58,62,59,60,63,62,65,73,88]],
+  ]},
+  {id:'league', name:'The League', net:'FX / FXX', s:[
+    ["The Draft|The Bounce Test|Sunday at Ruxin's|Mr. McGibblets|The Usual Bet|The Shiva Bowl",22,1],
+    ['Vegas Draft|Bro-Lo El Cuñado|The White Knuckler|The Kluneberg|The Marathon|The Anniversary Party|Ghost Monkey|The Tie|The Expert Witness|High School Reunion|Ramona Neopolitano|Kegel the Elf|The Sacko Bowl',[24,23,21,24,21,21,21,23,22,21,25,21,23]],
+    ["The Lockout|The Sukkah|The Au Pair|Ol' Smoke Crotch|Bobbum Man|Yobogoya!|Carmenjello|Thanksgiving|The Out of Towner|The Light of Genesis|The Guest Bong|St. Pete|The Funeral",22,1],
+    ['Training Camp|The Hoodie|The Freeze Out|The Breastalyzer|Judge MacArthur|The Tailgate|The Vapora Sport|The Anchor Baby|Bro-Lo El Cordero|Our Dinner with Andre|12.12.12|A Krampus Carol|The Curse of Shiva',22,1],
+    ['The Bachelor Draft|The Von Nowzick Wedding|Chalupa vs. the Cutlet|Rafi and Dirty Randy|The Bye Week|Heavy Petting|The Bringer Show|Flowers for Taco|The Automatic Faucet|The Near Death Flex-perience|The Credit Card Alert|Baby Geoffrey Jesus|The 8 Defensive Points of Hanukkah',22,1],
+    ['Sitting Shiva|Tefl-Andre|The Height Supremacist|When Rafi Met Randy|The Hot Tub|Breast Awareness Month|The Heavenly Fouler|Man Land|Taco Standard Time|Epi Sexy|EBDBBnB|Ménage à Cinq|The Beach House',22,1],
+    ['That Other Draft|The Draft of Innocence|The Blind Spot|Deflategate|The Bully|The Beer Mile|Trophy Kevin|The Last Temptation of Andre|The Yank Banker|The Block|Adios y Bienvenidos|The 13 Stages of Grief|The Great Night of Shiva',22,1],
+  ]},
+  {id:'leftovers', name:'The Leftovers', net:'HBO', s:[
+    ['Pilot|Penguin One, Us Zero|Two Boats and a Helicopter|B.J. and the A.C.|Gladys|Guest|Solace for Tired Feet|Cairo|The Garveys at Their Best|The Prodigal Son Returns',[72,56,52,51,55,52,57,56,56,53]],
+    ['Axis Mundi|A Matter of Geography|Off Ramp|Orange Sticker|No Room at the Inn|Lens|A Most Powerful Adversary|International Assassin|Ten Thirteen|I Live Here Now',[62,57,57,55,56,57,58,62,55,72]],
+    ["The Book of Kevin|Don't Be Ridiculous|Crazy Whitefella Thinking|G'Day Melbourne|It's a Matt, Matt, Matt, Matt World|Certified|The Most Powerful Man in the World (and His Identical Twin Brother)|The Book of Nora",[60,59,58,55,55,58,60,72]],
+  ]},
+  // ---- Already rewatched before using the tracker (pre: 1) ----
+  {id:'bcs', name:'Better Call Saul', net:'AMC', pre:1, s:[
+    ['Uno|Mijo|Nacho|Hero|Alpine Shepherd Boy|Five-O|Bingo|RICO|Pimento|Marco',[53,46,47,47,44,42,47,47,47,49]],
+    ["Switch|Cobbler|Amarillo|Gloves Off|Rebecca|Bali Ha'i|Inflatable|Fifi|Nailed|Klick",[47,47,42,43,46,46,42,48,49,48]],
+    ['Mabel|Witness|Sunk Costs|Sabrosito|Chicanery|Off Brand|Expenses|Slip|Fall|Lantern',[52,51,45,47,49,47,53,49,49,56]],
+    ['Smoke|Breathe|Something Beautiful|Talk|Quite a Ride|Piñata|Something Stupid|Coushatta|Wiedersehen|Winner',[48,46,42,46,52,47,41,52,55,60]],
+    ['Magic Man|50% Off|The Guy for This|Namaste|Dedicado a Max|Wexler v. Goodman|JMM|Bagman|Bad Choice Road|Something Unforgivable',[54,45,54,46,50,51,48,54,59,60]],
+    ['Wine and Roses|Carrot and Stick|Rock and Hard Place|Hit and Run|Black and Blue|Axe and Grind|Plan and Execution|Point and Shoot|Fun and Games|Nippy|Breaking Bad|Waterworks|Saul Gone',[56,60,47,44,52,46,57,48,56,51,57,58,69]],
+  ]},
+  {id:'bb', name:'Breaking Bad', net:'AMC', pre:1, s:[
+    ["Pilot|Cat's in the Bag…|…And the Bag's in the River|Cancer Man|Gray Matter|Crazy Handful of Nothin'|A No-Rough-Stuff-Type Deal",[58,48,48,48,48,48,48]],
+    ['Seven Thirty-Seven|Grilled|Bit by a Dead Bee|Down|Breakage|Peekaboo|Negro y Azul|Better Call Saul|4 Days Out|Over|Mandala|Phoenix|ABQ',[47,46,47,47,47,47,47,47,47,47,47,47,48]],
+    ['No Más|Caballo sin Nombre|I.F.T.|Green Light|Más|Sunset|One Minute|I See You|Kafkaesque|Fly|Abiquiú|Half Measures|Full Measure',47],
+    ['Box Cutter|Thirty-Eight Snub|Open House|Bullet Points|Shotgun|Cornered|Problem Dog|Hermanos|Bug|Salud|Crawl Space|End Times|Face Off',[48,46,47,47,47,47,47,47,47,47,47,47,50]],
+    ["Live Free or Die|Madrigal|Hazard Pay|Fifty-One|Dead Freight|Buyout|Say My Name|Gliding Over All|Blood Money|Buried|Confessions|Rabid Dog|To'hajiilee|Ozymandias|Granite State|Felina",[43,48,48,48,48,48,48,48,48,48,48,48,47,48,55,55]],
+  ]},
+  {id:'dexter', name:'Dexter', net:'Showtime', pre:1, s:[
+    ["Dexter|Crocodile|Popping Cherry|Let's Give the Boy a Hand|Love American Style|Return to Sender|Circle of Friends|Shrink Wrap|Father Knows Best|Seeing Red|Truth Be Told|Born Free",[53,54,50,57,55,52,52,53,55,56,53,56]],
+    ["It's Alive!|Waiting to Exhale|An Inconvenient Lie|See-Through|The Dark Defender|Dex, Lies, and Videotape|That Night, a Forest Grew|Morning Comes|Resistance Is Futile|There's Something About Harry|Left Turn Ahead|The British Invasion",[53,56,52,53,56,53,55,49,50,55,51,51]],
+    ['Our Father|Finding Freebo|The Lion Sleeps Tonight|All in the Family|Turning Biminese|Sí Se Puede|Easy as Pie|The Damage a Man Can Do|About Last Night|Go Your Own Way|I Had a Dream|Do You Take Dexter Morgan?',[58,49,49,54,48,54,57,54,51,50,50,51]],
+    ['Living the Dream|Remains to Be Seen|Blinded by the Light|Dex Takes a Holiday|Dirty Harry|If I Had a Hammer|Slack Tide|Road Kill|Hungry Man|Lost Boys|Hello, Dexter Morgan|The Getaway',[54,49,51,54,49,55,52,54,51,57,51,51]],
+    ['My Bad|Hello, Bandit|Practically Perfect|Beauty and the Beast|First Blood|Everything Is Illumenated|Circle Us|Take It!|Teenage Wasteland|In the Beginning|Hop a Freighter|The Big One',[54,49,49,50,51,50,48,52,55,54,47,55]],
+    ['Those Kinds of Things|Once Upon a Time…|Smokey and the Bandit|A Horse of a Different Color|The Angel of Death|Just Let Go|Nebraska|Sin of Omission|Get Gellar|Ricochet Rabbit|Talk to the Hand|This Is the Way the World Ends',[53,53,50,52,51,54,52,52,50,49,48,51]],
+    ['Are You…?|Sunshine and Frosty Swirl|Buck the System|Run|Swim Deep|Do the Wrong Thing|Chemistry|Argentina|Helter Skelter|The Dark… Whatever|Do You See What I See?|Surprise, Motherfucker!',[55,58,56,53,57,54,53,57,57,54,57,56]],
+    ["A Beautiful Day|Every Silver Lining…|What's Eating Dexter Morgan?|Scar Tissue|This Little Piggy|A Little Reflection|Dress Code|Are We There Yet?|Make Your Own Kind of Music|Goodbye Miami|Monkey in a Box|Remember the Monsters?",[53,57,49,50,48,55,53,52,55,53,52,56]],
+  ]},
+  {id:'mrinbetween', name:'Mr Inbetween', net:'FX', pre:1, s:[
+    ["The Pee Pee Guy|Unicorns Know Everybody's Name|Captain Obvious|On Behalf of Society|Hard Worker|Your Mum's Got a Strongbox",[26,24,25,23,23,24]],
+    ["Shoulda Tapped|Don't Be a Dickhead|I Came from Your Balls?|Monsters|Can't Save You|Let Me Stop You There|Watch Out for Snakes|See You in Your Dreams|Socks Are Important|Nice Face|There Rust, and Let Me Die",[26,26,25,24,28,24,27,25,28,23,26]],
+    ["Coulda Shoulda|Champ|All I Ever Wanted|Cut the Crap Princess|Before I Went to War|Ray Who?|I'm Your Girl|I'll See You Soon|I'm Not Leaving",25,1],
+  ]},
+  {id:'ozark', name:'Ozark', net:'Netflix', pre:1, s:[
+    ['Sugarwood|Blue Cat|My Dripping Sleep|Tonight We Improvise|Ruling Days|Book of Ruth|Nest Box|Kaleidoscope|Coffee, Black|The Toll',[60,55,60,60,55,60,60,50,60,80]],
+    ['Reparations|The Precious Blood of Jesus|Once a Langmore…|Stag|Game Day|Outer Darkness|One Way Out|The Big Sleep|The Badger|The Gold Coast',[60,60,55,60,60,65,60,65,65,65]],
+    ['Wartime|Civil Union|Kevin Cronin Was Here|Boss Fight|It Came from Michoacán|Su Casa Es Mi Casa|In Case of Emergency|BFF|Fire Pink|All In',[60,65,60,55,65,60,60,60,65,65]],
+    ["The Beginning of the End|Let the Great World Spin|City on the Make|Ace Deuce|Ellie|Sangre Sobre Todo|Sanctified|The Cousin of Death|Pick a God and Pray|You're the Boss|Pound of Flesh and Still Kickin'|Trouble the Water|Mud|A Hard Way to Go",[62,66,57,50,55,63,55,55,62,63,65,54,58,71]],
+  ]},
+  {id:'sherlock', name:'Sherlock', net:'BBC One', pre:1, s:[
+    ['A Study in Pink|The Blind Banker|The Great Game',[88,88,89]],
+    ['A Scandal in Belgravia|The Hounds of Baskerville|The Reichenbach Fall',[89,88,88]],
+    ['The Empty Hearse|The Sign of Three|His Last Vow|The Abominable Bride (special)',[86,86,89,89]],
+    ['The Six Thatchers|The Lying Detective|The Final Problem',[88,89,89]],
+  ]},
+];
+const BUILTIN = RAW.map(r => ({ id: r.id, name: r.name, net: r.net, pre: !!r.pre, seasons: r.s.map(([t, rt, est]) => {
+  const titles = t.split('|');
+  return { titles, rts: titles.map((_, i) => Array.isArray(rt) ? rt[i] : rt), est: !!est };
+}) }));
+// Shows you add yourself: [{ id, name, net, eps: [episodes per season], rt }]
+function customToShow(c) {
+  return { id: c.id, name: c.name, net: c.net || 'Added by you', custom: true,
+    seasons: c.eps.map(n => ({ titles: Array.from({ length: n }, (_, i) => 'Episode ' + (i + 1)), rts: Array(n).fill(c.rt), est: true })) };
+}
+const buildShows = custom => BUILTIN.concat((custom || []).map(customToShow));
+let SHOWS = buildShows([]);
+const epCount = (s, si) => s.seasons[si - 1].titles.length;
+const rtOfEp = (s, si, e) => s.seasons[si - 1].rts[e - 1];
+const seasonMin = (s, si) => s.seasons[si - 1].rts.reduce((a, b) => a + b, 0);
+const seasonLabel = (s, si) => 'Season ' + si;
+const DAY = 86400000;
+
+// ---------- State ----------
+const LS_KEY = 'tvshows.v1';
+// shows: showId -> { "season-episode": timestampWatched }
+// started: showId -> timestamp the current rewatch started (set automatically on first episode, editable)
+// history: logged rewatches [{ h, id, start, end, eps, min }]
+// ended: finish date for shows rewatched before tracking; cleared: those shows reset to start a new rewatch
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [] };
+const open = new Set();
+const seasonOpen = new Map();   // "showId|season" -> expanded?
+let filter = 'all';
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+try { const c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && c.shows) state = sanitize(c); } catch (e) {}
+
+function sanitizeCustom(list) {
+  const out = [];
+  if (!Array.isArray(list)) return out;
+  for (const c of list.slice(0, 100)) {
+    if (!c || typeof c.id !== 'string' || !/^c[a-z0-9]{4,16}$/.test(c.id) || out.some(x => x.id === c.id)) continue;
+    const name = typeof c.name === 'string' ? c.name.trim().slice(0, 60) : '';
+    const eps = Array.isArray(c.eps) ? c.eps.slice(0, 50).map(n => Math.floor(+n)).filter(n => n >= 1 && n <= 300) : [];
+    const rt = Math.floor(+c.rt);
+    if (!name || !eps.length || !(rt >= 1 && rt <= 300)) continue;
+    out.push({ id: c.id, name, net: typeof c.net === 'string' ? c.net.trim().slice(0, 40) : '', eps, rt });
+  }
+  return out;
+}
+function sanitize(d) {
+  const out = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: sanitizeCustom(d && d.custom) };
+  SHOWS = buildShows(out.custom);
+  const okTs = v => typeof v === 'number' && isFinite(v) && v > 0;
+  const obj = k => d && typeof d[k] === 'object' && d[k] ? d[k] : {};
+  const st = obj('started'), en = obj('ended'), cl = obj('cleared');
+  for (const s of SHOWS) {
+    if (okTs(st[s.id])) out.started[s.id] = st[s.id];
+    if (okTs(en[s.id])) out.ended[s.id] = en[s.id];
+    if (cl[s.id] === true) out.cleared[s.id] = true;
+  }
+  if (d && Array.isArray(d.history)) for (const h of d.history.slice(0, 500)) {
+    if (!h || !SHOWS.some(s => s.id === h.id) || !(okTs(h.start) || h.start === 0) || !(okTs(h.end) || h.end === 0)) continue;
+    out.history.push({ h: typeof h.h === 'string' ? h.h.slice(0, 20) : Math.random().toString(36).slice(2, 10),
+      id: h.id, start: h.start, end: h.end, eps: Math.max(0, +h.eps || 0), min: Math.max(0, +h.min || 0) });
+  }
+  const src = d && typeof d.shows === 'object' && d.shows ? d.shows : {};
+  for (const s of SHOWS) {
+    const m = src[s.id]; if (!m || typeof m !== 'object') continue;
+    const clean = {};
+    for (const k in m) {
+      if (!/^\d+-\d+$/.test(k) || typeof m[k] !== 'number' || !isFinite(m[k])) continue;
+      let [si, e] = k.split('-').map(Number);
+      // Earlier version listed Archer's "Into the Cold" finale as a separate 15th season.
+      if (s.id === 'archer' && si === 15) { si = 14; e = 9; }
+      if (si >= 1 && si <= s.seasons.length && e >= 1 && e <= epCount(s, si)) {
+        const nk = si + '-' + e;
+        if (!clean[nk] || m[k] < clean[nk]) clean[nk] = m[k];
+      }
+    }
+    out.shows[s.id] = clean;
+  }
+  return out;
+}
+const watchedMap = id => state.shows[id] || (state.shows[id] = {});
+
+// ---------- Stats ----------
+function showStats(s) {
+  const w = state.shows[s.id] || {};
+  let totalEps = 0, totalMin = 0, wEps = 0, wMin = 0, first = null, last = null, next = null;
+  s.seasons.forEach((sea, i) => {
+    const si = i + 1, n = sea.titles.length;
+    for (let e = 1; e <= n; e++) {
+      const rt = sea.rts[e - 1];
+      totalEps++; totalMin += rt;
+      const ts = w[si + '-' + e];
+      if (ts) { wEps++; wMin += rt; if (first === null || ts < first) first = ts; if (last === null || ts > last) last = ts; }
+      else if (!next) next = { si, e };
+    }
+  });
+  // Shows rewatched before you started tracking count as finished until you start them again.
+  if (s.pre && !state.cleared[s.id] && wEps === 0) {
+    const start = state.started[s.id] || null, end = state.ended[s.id] || null;
+    return { totalEps, totalMin, wEps: totalEps, wMin: totalMin, first: null, last: end, next: null, status: 'done', start, virtual: true, undated: !(start && end) };
+  }
+  const start = state.started[s.id] || first;
+  const status = wEps === totalEps ? 'done' : (wEps === 0 && !start) ? 'new' : 'watching';
+  return { totalEps, totalMin, wEps, wMin, first, last, next, status, start };
+}
+const fmtH = m => { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? (r ? `${h}h ${r}m` : `${h}h`) : `${r}m`; };
+const fmtD = ts => new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+const daysSpan = (a, b) => Math.max(1, Math.floor((startOfDay(b) - startOfDay(a)) / DAY) + 1);
+function startOfDay(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const pad = n => String(n).padStart(2, '0');
+const isoDate = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const fmtDay = ts => new Date(ts).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const showById = id => SHOWS.find(s => s.id === id);
+
+// ---------- History view ----------
+function renderHistory() {
+  const now = Date.now();
+  // Completed: logged rewatches + shows currently finished but not yet logged
+  const done = state.history.map(h => ({ ...h, logged: true }));
+  const inProg = [];
+  for (const s of SHOWS) {
+    const st = showStats(s);
+    if (st.status === 'done') done.push({ id: s.id, start: st.start || 0, end: st.last || 0, eps: st.totalEps, min: st.totalMin, logged: false, before: !!st.virtual });
+    else if (st.status === 'watching') inProg.push({ s, st });
+  }
+  done.sort((a, b) => (b.end || 0) - (a.end || 0) || showById(a.id).name.localeCompare(showById(b.id).name));
+  inProg.sort((a, b) => a.st.start - b.st.start);
+
+  const doneHTML = done.length ? done.map(h => {
+    const s = showById(h.id), dated = h.start && h.end, d = dated ? daysSpan(h.start, h.end) : 0;
+    return `<div class="hrow">${artHTML(s, true)}<div class="hinfo">
+      <div class="hname">${esc(s.name)}${h.logged || h.before ? '' : ' <span class="pill done">Just finished</span>'}</div>
+      ${dated ? `<div class="hmeta">${fmtD(h.start)} → ${fmtD(h.end)}</div>
+      <div class="hmeta"><b>${plural(d, 'day')}</b> · ${fmtH(h.min)} · ${fmtH(h.min / d)}/day</div>`
+      : `<div class="hmeta">Dates not set · ${fmtH(h.min)}</div>${h.logged ? '' : `<div class="hmeta">Open ${esc(s.name)} in Shows to add them</div>`}`}</div>
+      ${h.logged ? `<button class="hdel" data-delhist="${esc(h.h)}" aria-label="Delete this entry">✕</button>` : ''}</div>`;
+  }).join('') : `<div class="empty small">No finished rewatches yet. They'll show up here as soon as you finish a show.</div>`;
+
+  const progHTML = inProg.length ? inProg.map(({ s, st }) => {
+    const d = daysSpan(st.start, now), pct = st.wMin / st.totalMin * 100, perDay = st.wMin / d;
+    return `<div class="hrow">${artHTML(s, true)}<div class="hinfo">
+      <div class="hname">${esc(s.name)}</div>
+      <div class="hmeta">Started ${fmtD(st.start)} · day <b>${d}</b></div>
+      <div class="hmeta">${Math.floor(pct)}% · ${fmtH(st.totalMin - st.wMin)} left${perDay > 0 ? ' · finish ~' + fmtD(now + (st.totalMin - st.wMin) / perDay * DAY) : ''}</div>
+      <div class="bar" style="margin:6px 0 0;height:4px"><i style="width:${pct}%"></i></div></div></div>`;
+  }).join('') : `<div class="empty small">Nothing in progress.</div>`;
+
+  // Watch log: every ticked episode, grouped by day (newest first)
+  const evts = [];
+  for (const s of SHOWS) {
+    const w = state.shows[s.id] || {};
+    for (const k in w) { const [si, e] = k.split('-').map(Number); evts.push({ s, si, e, ts: w[k] }); }
+  }
+  evts.sort((a, b) => b.ts - a.ts);
+  const days = [];
+  for (const ev of evts) {
+    const key = isoDate(ev.ts);
+    let g = days[days.length - 1];
+    if (!g || g.key !== key) { if (days.length >= 30) break; g = { key, ts: ev.ts, items: [], min: 0 }; days.push(g); }
+    g.items.push(ev); g.min += rtOfEp(ev.s, ev.si, ev.e);
+  }
+  const logHTML = days.length ? days.map(g => `<div class="lday"><div class="lhead"><span>${fmtDay(g.ts)}</span><span>${plural(g.items.length, 'episode')} · ${fmtH(g.min)}</span></div>
+    ${g.items.map(ev => `<div class="litem"><span class="lshow">${esc(ev.s.name)}</span> S${ev.si} E${ev.e} · ${esc(ev.s.seasons[ev.si - 1].titles[ev.e - 1])}</div>`).join('')}</div>`).join('')
+    : `<div class="empty small">Episodes you tick off will appear here, grouped by day.</div>`;
+
+  document.getElementById('history').innerHTML = `
+    <h2>Finished rewatches</h2>${doneHTML}
+    <h2>In progress</h2>${progHTML}
+    <h2>Watch log</h2>${logHTML}`;
+}
+
+// ---------- Render ----------
+function renderSummary() {
+  let tMin = 0, wMin = 0, tEps = 0, wEps = 0, first = null, doneShows = 0, trackedMin = 0;
+  for (const s of SHOWS) {
+    const st = showStats(s);
+    tMin += st.totalMin; wMin += st.wMin; tEps += st.totalEps; wEps += st.wEps;
+    if (!st.virtual) trackedMin += st.wMin;
+    if (!st.virtual && st.start && (first === null || st.start < first)) first = st.start;
+    if (st.status === 'done') doneShows++;
+  }
+  const pct = tMin ? wMin / tMin * 100 : 0;
+  let days = '—', pace = '—', eta = '—';
+  if (first) {
+    const d = daysSpan(first, Date.now());
+    days = plural(d, 'day');
+    const perDay = trackedMin / d;
+    pace = fmtH(perDay) + ' / day';
+    eta = wMin >= tMin ? 'Done 🎉' : perDay > 0 ? fmtD(Date.now() + (tMin - wMin) / perDay * DAY) : '—';
+  }
+  document.getElementById('summary').innerHTML = `
+    <div class="big"><b>${fmtH(wMin)}</b><span>of ${fmtH(tMin)} watched · ${pct.toFixed(1)}%</span></div>
+    <div class="bar${pct >= 100 ? ' done' : ''}"><i style="width:${pct}%"></i></div>
+    <div class="stats">
+      <div class="stat"><small>Episodes</small><div>${wEps} / ${tEps}</div></div>
+      <div class="stat"><small>Shows done</small><div>${doneShows} / ${SHOWS.length}</div></div>
+      <div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
+      <div class="stat"><small>Your pace</small><div>${pace}</div></div>
+      <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>
+    </div>`;
+}
+
+function renderTabs() {
+  const counts = { all: SHOWS.length, watching: 0, new: 0, done: 0 };
+  SHOWS.forEach(s => counts[showStats(s).status]++);
+  const tabs = [['all', 'All'], ['watching', 'Watching'], ['new', 'Not started'], ['done', 'Finished']];
+  document.getElementById('tabs').innerHTML = tabs.map(([k, l]) =>
+    `<button data-tab="${k}" class="${filter === k ? 'on' : ''}">${l} (${counts[k]})</button>`).join('');
+}
+
+function showHTML(s) {
+  const st = showStats(s), w = state.shows[s.id] || {};
+  const pct = st.wMin / st.totalMin * 100;
+  const pill = st.status === 'done' ? `<span class="pill done">Finished</span>`
+    : st.status === 'watching' ? `<span class="pill watching">Day ${daysSpan(st.start, Date.now())}</span>`
+    : `<span class="pill">Not started</span>`;
+  const logged = state.history.filter(h => h.id === s.id).length;
+  let timing;
+  if (st.status === 'new') timing = `About <b>${fmtH(st.totalMin)}</b> to watch.`;
+  else if (st.virtual) timing = st.undated
+    ? `Rewatched before you started tracking (${fmtH(st.totalMin)}). Add when you started and finished to see how many days it took.`
+    : `Rewatched ${fmtD(st.start)} → ${fmtD(st.last)} — took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
+  else if (st.status === 'done') timing = `Finished <b>${fmtD(st.last)}</b> — this rewatch took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
+  else {
+    const d = daysSpan(st.start, Date.now()), perDay = st.wMin / d;
+    timing = `Day <b>${d}</b> of this rewatch. Watched <b>${fmtH(st.wMin)}</b>, <b>${fmtH(st.totalMin - st.wMin)}</b> left` +
+      (perDay > 0 ? ` — at ${fmtH(perDay)}/day you'll finish around <b>${fmtD(Date.now() + (st.totalMin - st.wMin) / perDay * DAY)}</b>.` : '.');
+  }
+  const today = isoDate(Date.now());
+  const startRow = st.status === 'new'
+    ? `<button class="startbtn" data-startnow="${s.id}">▶ Start rewatch today</button>`
+    : `<label class="startrow">Rewatch started <input type="date" data-start="${s.id}" value="${st.start ? isoDate(st.start) : ''}" max="${today}"></label>` +
+      (st.virtual ? `<label class="startrow">Rewatch finished <input type="date" data-end="${s.id}" value="${st.last ? isoDate(st.last) : ''}" max="${today}"></label>` : '');
+  const doneRow = st.status === 'done'
+    ? `<button class="logbtn" data-log="${s.id}">${st.virtual ? 'Watch it again — log this rewatch to History' : 'Log this rewatch to History &amp; start fresh'}</button>` : '';
+  const prevRow = logged ? `<div class="note" style="margin:0 0 10px">You've logged ${logged === 1 ? 'one previous rewatch' : logged + ' previous rewatches'} of ${esc(s.name)} — see History.</div>` : '';
+  const anyEst = s.seasons.some(x => x.est);
+  const seasons = open.has(s.id) ? s.seasons.map((sea, i) => {
+    const si = i + 1, n = sea.titles.length; let c = 0, wm = 0;
+    let rows = '';
+    for (let e = 1; e <= n; e++) {
+      const ts = w[si + '-' + e], on = !!ts || !!st.virtual; if (on) { c++; wm += sea.rts[e - 1]; }
+      const nx = st.next && st.next.si === si && st.next.e === e;
+      rows += `<button class="ep${on ? ' w' : ''}${nx ? ' nx' : ''}" data-ep="${s.id}|${si}|${e}" aria-label="Season ${si} episode ${e}, ${esc(sea.titles[e - 1])}${on ? ', watched' : ''}">
+        <span class="box">✓</span><span class="num">E${e}</span>
+        <span class="ttl">${esc(sea.titles[e - 1])}${ts ? `<span class="when">Watched ${fmtD(ts)}</span>` : ''}</span>
+        <span class="rt">${sea.est ? '~' : ''}${sea.rts[e - 1]}m</span></button>`;
+    }
+    const all = c === n, total = seasonMin(s, si), spct = c / n * 100;
+    const key = s.id + '|' + si;
+    const isOpen = seasonOpen.has(key) ? seasonOpen.get(key) : !!(st.next && st.next.si === si);
+    return `<div class="season${isOpen ? ' sopen' : ''}"><div class="shead">
+        <button class="stog" data-stog="${s.id}|${si}"><span class="chev">▶</span><span class="t">${seasonLabel(s, si)}<span>${c}/${n} · ${c && !all ? fmtH(total - wm) + ' left' : (sea.est ? '~' : '') + fmtH(total)}</span></span></button>
+        ${st.virtual ? '' : `<button class="sbtn" data-season="${s.id}|${si}|${all ? 0 : 1}">${all ? 'Clear' : 'Mark all'}</button>`}</div>
+      <div class="sbar${all ? ' done' : ''}"><i style="width:${spct}%"></i></div>
+      <div class="eps">${rows}</div></div>`;
+  }).join('') + (anyEst ? `<div class="note">~ marks seasons where exact per-episode runtimes weren't available, so a typical episode length is used.</div>` : '') : '';
+  return `<article class="show${open.has(s.id) ? ' open' : ''}" id="show-${s.id}">
+    <button class="head" data-toggle="${s.id}"><div class="hwrap">${artHTML(s)}<div class="info">
+      <div class="row1"><div><div class="name">${esc(s.name)}</div>
+        <div class="meta">${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps · ~${fmtH(st.totalMin)}</div></div>${pill}</div>
+      <div class="bar${st.status === 'done' ? ' done' : ''}"><i style="width:${pct}%"></i></div>
+      <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : fmtH(st.totalMin - st.wMin) + ' left'}</span></div>
+    </div></div></button>
+    <div class="body">
+      <div class="picrow"><label>${art[s.id] ? 'Change picture' : 'Add picture'}<input type="file" accept="image/*" data-pic="${s.id}"></label>${art[s.id] ? `<button data-unpic="${s.id}">Remove picture</button>` : ''}</div>
+      ${st.next ? `<button class="next" data-next="${s.id}">✓ Watched S${st.next.si} E${st.next.e} · ${esc(s.seasons[st.next.si - 1].titles[st.next.e - 1])} (${rtOfEp(s, st.next.si, st.next.e)}m)</button>` : ''}
+      ${startRow}
+      <div class="timing">${timing}</div>
+      ${doneRow}${prevRow}
+      ${seasons}
+      ${st.wEps && !st.virtual ? `<button class="reset" data-reset="${s.id}">Reset progress for ${esc(s.name)}</button>` : ''}
+      ${s.custom ? `<button class="reset" data-rmshow="${s.id}">Remove ${esc(s.name)} from the tracker</button>` : ''}
+    </div>
+  </article>`;
+}
+
+// ---------- Show pictures (your own uploads; default = coloured initials tile) ----------
+const ART_KEY = 'tvshows.art.v1';
+let art = {};
+try { const a = JSON.parse(localStorage.getItem(ART_KEY) || 'null'); if (a && typeof a === 'object') art = a; } catch (e) {}
+const HUES = [262, 12, 140, 205, 30, 48, 220, 0, 160, 290];
+function artHTML(s, small) {
+  const src = art[s.id], cls = 'art' + (small ? ' sm' : '');
+  if (typeof src === 'string' && src.startsWith('data:image/')) return `<div class="${cls}"><img src="${src}" alt=""></div>`;
+  const h = HUES[SHOWS.indexOf(s) % HUES.length];
+  const ini = s.name.replace(/^The /, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return `<div class="${cls}" style="background:linear-gradient(160deg,hsl(${h} 55% 45%),hsl(${h} 50% 22%))">${ini}</div>`;
+}
+function saveArtLocal() { try { localStorage.setItem(ART_KEY, JSON.stringify(art)); } catch (e) {} }
+function shrinkImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const W = 180, H = 270, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const r = Math.max(W / img.width, H / img.height), w = img.width * r, h = img.height * r;
+      c.getContext('2d').drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+let artRefs = null, artCol = null, artUnsubs = [];
+function watchArt(s) {
+  if (!artRefs || !artCol || artRefs[s.id]) return;
+  const r = artRefs[s.id] = artCol.doc('art-' + s.id);
+  artUnsubs.push(r.onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
+    const img = snap.exists ? snap.data().img : null;
+    if (typeof img === 'string' && img.startsWith('data:image/')) {
+      if (art[s.id] !== img) { art[s.id] = img; saveArtLocal(); renderList(); renderHistory(); }
+    } else if (art[s.id]) {
+      r.set({ img: art[s.id] }).catch(() => {});   // picture only on this device so far: upload it
+    }
+  }, () => {}));
+}
+async function setArt(id, dataUrl) {
+  if (dataUrl) art[id] = dataUrl; else delete art[id];
+  saveArtLocal(); renderList(); renderHistory();
+  if (artRefs && artRefs[id]) {
+    try { dataUrl ? await artRefs[id].set({ img: dataUrl }) : await artRefs[id].delete(); }
+    catch (e) { setSync('Couldn’t save the picture to your account — kept on this device'); }
+  }
+}
+document.addEventListener('change', async ev => {
+  const inp = ev.target; if (!inp.dataset || !inp.dataset.pic || !inp.files || !inp.files[0]) return;
+  try { await setArt(inp.dataset.pic, await shrinkImage(inp.files[0])); }
+  catch (e) { setSync('That image couldn’t be read — try another'); }
+});
+
+function renderList() {
+  // Shortest time left first; finished shows go to the bottom.
+  const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.totalMin - st.wMin; };
+  const items = SHOWS.filter(s => filter === 'all' || showStats(s).status === filter)
+    .sort((a, b) => (left(a) - left(b)) || a.name.localeCompare(b.name));
+  document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
+    : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
+}
+function render() { renderSummary(); renderTabs(); renderList(); renderHistory(); }
+
+// ---------- Interaction ----------
+// The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
+const ensureStarted = (id, ts) => { if (!state.started[id]) state.started[id] = ts || Date.now(); };
+
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('button'); if (!t) return;
+  if (t.dataset.view) { showView(t.dataset.view); return; }
+  if (t.dataset.tab) { filter = t.dataset.tab; renderTabs(); renderList(); return; }
+  if (t.dataset.toggle) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); renderList(); return; }
+  if (t.dataset.stog) {
+    const key = t.dataset.stog, box = t.closest('.season');
+    seasonOpen.set(key, !box.classList.contains('sopen'));
+    box.classList.toggle('sopen');
+    return;
+  }
+  if (t.dataset.ep) {
+    const [id, si, e] = t.dataset.ep.split('|');
+    if (showStats(showById(id)).virtual) return;   // already rewatched: use "Watch it again" to start a new rewatch
+    const m = watchedMap(id), k = si + '-' + e;
+    seasonOpen.set(id + '|' + si, true);
+    if (m[k]) delete m[k]; else { m[k] = Date.now(); ensureStarted(id, m[k]); }
+    changed(); return;
+  }
+  if (t.dataset.season) {
+    const [id, si, on] = t.dataset.season.split('|'), s = showById(id), m = watchedMap(id), now = Date.now();
+    for (let e = 1; e <= epCount(s, +si); e++) { const k = si + '-' + e; if (on === '1') { if (!m[k]) m[k] = now; } else delete m[k]; }
+    if (on === '1') ensureStarted(id, now);
+    changed(); return;
+  }
+  if (t.dataset.next) {
+    const s = showById(t.dataset.next), st = showStats(s);
+    if (st.next) { const now = Date.now(); watchedMap(s.id)[st.next.si + '-' + st.next.e] = now; ensureStarted(s.id, now); }
+    changed(); return;
+  }
+  if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); changed(); return; }
+  if (t.dataset.log) {
+    const s = showById(t.dataset.log);
+    confirmBox(`Save this rewatch of ${s.name} to History and clear its episodes so you can watch it again?`, 'Log it', () => {
+      const st = showStats(s);
+      if (st.status !== 'done') return;
+      state.history.push({ h: Math.random().toString(36).slice(2, 10), id: s.id, start: st.start || 0, end: st.last || 0, eps: st.totalEps, min: st.totalMin });
+      state.shows[s.id] = {}; delete state.started[s.id]; delete state.ended[s.id];
+      if (s.pre) state.cleared[s.id] = true;
+      changed();
+    });
+    return;
+  }
+  if (t.dataset.delhist) {
+    const h = state.history.find(x => x.h === t.dataset.delhist); if (!h) return;
+    confirmBox(`Delete the ${showById(h.id).name} rewatch (${fmtD(h.start)} → ${fmtD(h.end)}) from History?`, 'Delete', () => {
+      state.history = state.history.filter(x => x !== h); changed();
+    });
+    return;
+  }
+  if (t.dataset.reset) {
+    const id = t.dataset.reset;
+    confirmBox(`Clear all watched episodes and the start date for ${showById(id).name}? This can't be undone.`, 'Reset', () => {
+      state.shows[id] = {}; delete state.started[id]; changed();
+    });
+    return;
+  }
+  if (t.dataset.unpic) { setArt(t.dataset.unpic, null); return; }
+  if (t.dataset.addshow) { openAddForm(); return; }
+  if (t.dataset.rmshow) {
+    const s = showById(t.dataset.rmshow); if (!s || !s.custom) return;
+    confirmBox(`Remove ${s.name} from the tracker? Its ticked episodes and any History entries for it will be deleted too.`, 'Remove', () => {
+      state.custom = state.custom.filter(c => c.id !== s.id);
+      delete state.shows[s.id]; delete state.started[s.id];
+      state.history = state.history.filter(h => h.id !== s.id);
+      open.delete(s.id);
+      SHOWS = buildShows(state.custom);
+      setArt(s.id, null);
+      changed();
+    });
+    return;
+  }
+});
+
+// ---------- Add a show ----------
+function parseEps(txt) {
+  const parts = String(txt).split(/[,\s]+/).filter(Boolean);
+  if (!parts.length || parts.length > 50) return null;
+  const nums = parts.map(Number);
+  return nums.every(n => Number.isInteger(n) && n >= 1 && n <= 300) ? nums : null;
+}
+function updateAddPreview() {
+  const eps = parseEps(document.getElementById('f-eps').value), rt = +document.getElementById('f-rt').value;
+  const el = document.getElementById('f-prev');
+  if (!eps || !(rt >= 1 && rt <= 300)) { el.textContent = ''; return; }
+  const total = eps.reduce((a, b) => a + b, 0);
+  el.textContent = `${plural(eps.length, 'season')} · ${total} episodes · about ${fmtH(total * rt)} in total`;
+}
+function openAddForm() {
+  for (const id of ['f-name', 'f-net', 'f-eps']) document.getElementById(id).value = '';
+  document.getElementById('f-rt').value = '';
+  document.getElementById('f-err').textContent = '';
+  updateAddPreview();
+  document.getElementById('addform').classList.add('on');
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+const closeAddForm = () => document.getElementById('addform').classList.remove('on');
+document.getElementById('f-cancel').onclick = closeAddForm;
+for (const id of ['f-eps', 'f-rt']) document.getElementById(id).addEventListener('input', updateAddPreview);
+document.getElementById('addform-form').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const name = document.getElementById('f-name').value.trim().slice(0, 60);
+  const net = document.getElementById('f-net').value.trim().slice(0, 40);
+  const eps = parseEps(document.getElementById('f-eps').value);
+  const rt = Math.floor(+document.getElementById('f-rt').value);
+  const err = document.getElementById('f-err');
+  if (!name) { err.textContent = 'Give the show a name.'; return; }
+  if (SHOWS.some(s => s.name.toLowerCase() === name.toLowerCase())) { err.textContent = 'That show is already in your tracker.'; return; }
+  if (!eps) { err.textContent = 'Enter the number of episodes in each season, separated by commas — e.g. 10, 10, 8.'; return; }
+  if (!(rt >= 1 && rt <= 300)) { err.textContent = 'Enter a typical episode length in minutes (1–300).'; return; }
+  const id = 'c' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '').padEnd(6, '0');
+  state.custom.push({ id, name, net, eps, rt });
+  SHOWS = buildShows(state.custom);
+  watchArt(showById(id));
+  open.add(id); filter = 'all';
+  closeAddForm();
+  changed();
+  setTimeout(() => { const el = document.getElementById('show-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+});
+
+// Editing the start date of a rewatch
+document.addEventListener('change', ev => {
+  const inp = ev.target; if (!inp.dataset || !(inp.dataset.start || inp.dataset.end)) return;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(inp.value || '');
+  if (!m) return;
+  const ts = new Date(+m[1], +m[2] - 1, +m[3], 12).getTime();
+  if (!(ts > 0) || ts > Date.now() + DAY) return;
+  if (inp.dataset.start) state.started[inp.dataset.start] = ts; else state.ended[inp.dataset.end] = ts;
+  changed();
+});
+
+const VIEWS = ['shows', 'stats', 'history'];
+function showView(v) {
+  if (!VIEWS.includes(v)) v = 'shows';
+  for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
+}
+showView(location.hash.slice(1));
+window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+
+let pendingConfirm = null;
+function confirmBox(text, okLabel, fn) {
+  pendingConfirm = fn;
+  document.getElementById('mtext').textContent = text;
+  document.getElementById('myes').textContent = okLabel;
+  document.getElementById('modal').classList.add('on');
+}
+document.getElementById('mno').onclick = () => { pendingConfirm = null; document.getElementById('modal').classList.remove('on'); };
+document.getElementById('myes').onclick = () => {
+  const fn = pendingConfirm; pendingConfirm = null;
+  document.getElementById('modal').classList.remove('on');
+  if (fn) fn();
+};
+
+// ---------- Backup (copy / download / import) ----------
+function backupText() {
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom } });
+}
+const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
+if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('[data-bk]'); if (!b) return;
+  const act = b.dataset.bk, out = document.getElementById('bk-out'), inn = document.getElementById('bk-in');
+  if (act === 'copy') {
+    const txt = backupText(), ta = document.getElementById('bk-text'), msg = document.getElementById('bk-msg');
+    out.hidden = false; inn.hidden = true; ta.value = txt;
+    try { await navigator.clipboard.writeText(txt); msg.textContent = 'Copied. Paste it into Import backup in the TV Shows app.'; }
+    catch (e) { ta.focus(); ta.select(); msg.textContent = 'Select all the text above and copy it.'; }
+  } else if (act === 'download') {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([backupText()], { type: 'application/json' }));
+    a.download = 'tvshows-backup-' + isoDate(Date.now()) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } else if (act === 'import') {
+    inn.hidden = !inn.hidden; out.hidden = true;
+    document.getElementById('bk-imsg').textContent = '';
+  } else if (act === 'restore') {
+    restoreBackup(document.getElementById('bk-paste').value);
+  }
+});
+document.getElementById('bk-file').addEventListener('change', async ev => {
+  const f = ev.target.files && ev.target.files[0]; if (!f) return;
+  try { document.getElementById('bk-paste').value = await f.text(); restoreBackup(document.getElementById('bk-paste').value); }
+  catch (e) { document.getElementById('bk-imsg').textContent = 'That file couldn’t be read.'; }
+  ev.target.value = '';
+});
+function restoreBackup(txt) {
+  const msg = document.getElementById('bk-imsg');
+  let data;
+  try { data = JSON.parse(String(txt || '').trim()); } catch (e) { msg.textContent = 'That doesn’t look like a TV Shows backup. Copy the whole text and try again.'; return; }
+  if (!data || data.app !== 'tvshows' || !data.state) { msg.textContent = 'That doesn’t look like a TV Shows backup.'; return; }
+  const prevShows = SHOWS;
+  const next = sanitize(data.state);   // sanitize also rebuilds SHOWS for added shows
+  SHOWS = prevShows;
+  const ticks = Object.values(next.shows).reduce((n, m) => n + Object.keys(m).length, 0);
+  confirmBox(`Replace your current progress with this backup from ${data.exported ? fmtD(data.exported) : 'an unknown date'}? It has ${plural(ticks, 'ticked episode')}, ${plural(next.history.length, 'History entry').replace('entrys', 'entries')} and ${plural(next.custom.length, 'added show')}.`, 'Restore', () => {
+    state = next; SHOWS = buildShows(state.custom);
+    if (typeof watchArt === 'function') SHOWS.forEach(watchArt);
+    changed();
+    msg.textContent = 'Backup restored.';
+    document.getElementById('bk-paste').value = '';
+  });
+}
+
+// ---------- Persistence ----------
+const syncEl = document.getElementById('sync');
+let ref = null, dirty = false, writing = false, flushTimer = null, readOnly = false;
+function setSync(t) { syncEl.textContent = t; }
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+
+function changed() {
+  saveLocal(); render();
+  if (!ref || readOnly) return;
+  dirty = true; setSync('Saving…');
+  clearTimeout(flushTimer); flushTimer = setTimeout(flush, 700);
+}
+async function flush() {
+  if (!ref || writing || !dirty) return;
+  writing = true; dirty = false;
+  try {
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, updated: Date.now() });
+    if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
+  } catch (e) {
+    if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
+    else { dirty = true; setSync('Couldn’t save — will retry'); setTimeout(flush, 2500 + Math.random() * 1500); }
+  } finally {
+    writing = false;
+    if (dirty && !readOnly) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 300); }
+  }
+}
+
+render();
+
+// ---------- Account sync (Firebase project "ciaran-apps", data at users/<uid>/tvshows/...) ----------
+// Signed out, everything stays in this browser. Signed in, progress syncs to every device on the same account.
+let progressUnsub = null;
+if (!window.Cloud || !Cloud.enabled) setSync('Saved on this device only');
+else Cloud.onUser(u => {
+  if (progressUnsub) { progressUnsub(); progressUnsub = null; }
+  artUnsubs.forEach(f => f()); artUnsubs = []; artRefs = null; artCol = null;
+  ref = null; dirty = false; readOnly = false;
+  if (!u) { setSync('Not signed in — saved on this device only. Sign in at the top to sync.'); return; }
+  setSync('Connecting to your account…');
+  const col = Cloud.userRef().collection('tvshows');
+  ref = col.doc('progress');
+  artCol = col; artRefs = {};
+  SHOWS.forEach(watchArt);
+  let firstSnap = true;
+  progressUnsub = ref.onSnapshot({ includeMetadataChanges: true }, snap => {
+    if (Cloud.user !== u) return;
+    if (snap.metadata.hasPendingWrites || dirty || writing) return;
+    if (snap.exists) {
+      const data = snap.data();
+      const next = sanitize(data);
+      if (JSON.stringify(next) !== JSON.stringify(state)) { state = next; saveLocal(); render(); }
+      else SHOWS = buildShows(state.custom);
+      SHOWS.forEach(watchArt);
+      if (!snap.metadata.fromCache) setSync('Synced to your account · ' + (u.email || ''));
+    } else if (!snap.metadata.fromCache && firstSnap) {
+      // Nothing in your account yet: upload what's on this device.
+      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length;
+      if (hasLocal) { dirty = true; flush(); }
+      else setSync('Synced to your account · ' + (u.email || ''));
+    }
+    if (!snap.metadata.fromCache) firstSnap = false;
+  }, err => {
+    setSync('Couldn’t reach your account, so changes stay on this device for now. Reload to try again.');
+    ref = null;
+  });
+});
+
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+</script>
+</body>
+</html>
