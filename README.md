@@ -9,4 +9,6 @@ Live at **https://tvshows.ciarandevine.uk** — open it in Chrome and choose **I
 - `sw.js`, `manifest.json`, icons — make it installable and usable offline
 - `CNAME` — the custom address for GitHub Pages
 
+Add shows from the Shows tab by searching [TVmaze](https://www.tvmaze.com/api) (free, no key): they come with real episode titles, runtimes and air dates. Shows still airing refresh automatically every 6 hours when the app opens, or with **⟳ Sync episodes**.
+
 Signed out, everything is saved in the browser only. Use **Stats → Backup** to copy, download or import a backup.
