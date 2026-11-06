@@ -98,6 +98,9 @@
   #picker>div{max-height:85vh;overflow:auto}
   .pk-sec{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;margin:12px 2px 6px}
   .sugg.cur{border-color:var(--accent)}
+  .credit{font-size:12px;color:var(--muted);margin:12px 2px 0;line-height:1.5}
+  .credit a,.tmlink{color:var(--accent)}
+  .tmlink{font-size:12.5px}
   .backup{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .backup h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 0 6px}
   .backup p{font-size:13px;color:var(--muted);margin:0 0 12px;line-height:1.5}
@@ -146,7 +149,9 @@
   .hwrap{display:flex;gap:12px;align-items:stretch}
   .hwrap .info{flex:1;min-width:0}
   .art{width:58px;height:86px;flex:none;border-radius:9px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#fff;letter-spacing:.02em;box-shadow:0 2px 8px #0006}
+  .art{position:relative}
   .art img{width:100%;height:100%;object-fit:cover;display:block}
+  .art img.poster{position:absolute;inset:0}
   .picrow{display:flex;gap:8px;margin:-2px 0 12px}
   .picrow label,.picrow button{background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--muted);cursor:pointer}
   .picrow input{display:none}
@@ -243,6 +248,7 @@
 </div>
 <div id="view-stats" hidden>
   <section class="summary" id="summary"></section>
+  <p class="credit">Show data and posters from <a href="https://www.tvmaze.com" target="_blank" rel="noopener">TVmaze</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA</a>). Posters belong to their networks and studios.</p>
   <section class="backup">
     <h2>Backup</h2>
     <p>A backup holds your ticked episodes, start and finish dates, History and any shows you've added (not pictures). Use it to move your progress to the TV Shows app or keep a copy.</p>
@@ -300,7 +306,7 @@
 // Each season: [episode titles joined by "|", runtime in minutes (one number for every episode, or one per episode), estimated?]
 // Runtimes come from TheTVDB / store listings. Seasons marked estimated use a typical length where per-episode figures weren't available.
 const RAW = [
-  {id:'archer', name:'Archer', net:'FX / FXX', s:[
+  {id:'archer', year:2009, name:'Archer', net:'FX / FXX', s:[
     ['Mole Hunt|Training Day|Diversity Hire|Killing Utne|Honeypot|Skorpio|Skytanic|The Rock|Job Offer|Dial M for Mother',21,1],
     ['Swiss Miss|A Going Concern|Blood Test|Pipeline Fever|The Double Deuce|Tragical History|Movie Star|Stage Two|Placebo Effect|El Secuestro|Jeu Monégasque|White Nights|Double Trouble',21,1],
     ['Heart of Archness (1)|Heart of Archness (2)|Heart of Archness (3)|The Man from Jupiter|El Contador|The Limited|Drift Problem|Lo Scandalo|Bloody Ferlin|Crossing Over|Skin Game|Space Race (1)|Space Race (2)',[22,20,20,21,21,21,21,21,21,21,21,21,21],1],
@@ -316,33 +322,33 @@ const RAW = [
     ["The Big Con|Operation: Fang|Saturday|Laws of Attraction|Out of Network|Bank Run at Mr. Bank's Bank|Distraction Action|Dough, Ray, and Me",[23,22,22,22,22,23,23,22]],
     ['The Anglerfish Stratagem|30 for 30|Plaque Removal|Chill Barry|Keys Open Doors|Face Off|Mission Out of Control Room|Breaking Fabian|Into the Cold (series finale)',[23,23,23,24,23,23,23,23,65]],
   ]},
-  {id:'arrested', name:'Arrested Development', net:'FOX / Netflix', s:[
+  {id:'arrested', year:2003, name:'Arrested Development', net:'FOX / Netflix', s:[
     ["Pilot|Top Banana|Bringing Up Buster|Key Decisions|Charity Drive|Visiting Ours|In God We Trust|My Mother, the Car|Storming the Castle|Pier Pressure|Public Relations|Marta Complex|Beef Consommé|Shock and Aww|Staff Infection|Altar Egos|Justice Is Blind|Missing Kitty|Best Man for the Gob|Whistler's Mother|Not Without My Daughter|Let 'Em Eat Cake",22,1],
     ['The One Where Michael Leaves|The One Where They Build a House|¡Amigos!|Good Grief|Sad Sack|Afternoon Delight|Switch Hitter|Queen for a Day|Burning Love|Ready, Aim, Marry Me|Out on a Limb|Hand to God|Motherboy XXX|The Immaculate Election|Sword of Destiny|Meat the Veals|Spring Breakout|Righteous Brothers',22,1],
     ["The Cabin Show|For British Eyes Only|Forget Me Now|Notapusy|Mr. F|The Ocean Walker|Prison Break-In|Making a Stand|S.O.B.s|Fakin' It|Family Ties|Exit Strategy|Development Arrested",22,1],
     ['Flight of the Phoenix|Borderline Personalities|Indian Takers|The B. Team|A New Start|Double Crossers|Colony Collapse|Red Hairing|Smashed|Queen B.|A New Attitude|Señoritis|It Gets Better|Off the Hook|Blockheads',32,1],
     ['Family Leave|Self-Deportation|Everyone Gets Atrophy|An Old Start|Sinking Feelings|Emotional Baggage|Rom-Traum|Premature Independence|Unexpected Company|Taste Makers|Chain Migration|Check Mates|The Untethered Sole|Saving for Arraignment Day|Courting Disasters|The Fallout',[26,28,27,28,27,33,31,36,27,25,23,25,28,28,30,47]],
   ]},
-  {id:'banshee', name:'Banshee', net:'Cinemax', s:[
+  {id:'banshee', year:2013, name:'Banshee', net:'Cinemax', s:[
     ['Pilot|The Rave|Meet the New Boss|Half Deaf Is Better Than All Dead|The Kindred|Wicks|Behold a Pale Rider|We Shall Live Forever|Always the Cowboy|A Mixture of Madness',55,1],
     ['Little Fish|The Thunder Man|The Warrior Class|Bloodlines|The Truth About Unicorns|Armies of One|Ways to Bury a Man|Evil for Evil|Homecoming|Bullets and Tears',55,1],
     ["The Fire Trials|Snakes and Whatnot|A Fixer of Sorts|Real Life Is the Nightmare|Tribal|We Were All Someone Else Yesterday|You Can't Hide from the Dead|All the Wisdom I Got Left|Even God Doesn't Know What to Make of You|We All Pay Eventually",55,1],
     ['Something Out of the Bible|The Burden of Beauty|The Book of Job|Innocent Might Be a Bit of a Stretch|A Little Late to Grow a Pair|Only One Way a Dogfight Ends|Truths Other Than the Ones You Tell Yourself|Requiem',55,1],
   ]},
-  {id:'barry', name:'Barry', net:'HBO', s:[
+  {id:'barry', year:2018, name:'Barry', net:'HBO', s:[
     ['Chapter One: Make Your Mark|Chapter Two: Use It|Chapter Three: Make the Unsafe Choice|Chapter Four: Commit… to YOU|Chapter Five: Do Your Job|Chapter Six: Listen with Your Ears, React with Your Face|Chapter Seven: Loud, Fast, and Keep Going|Chapter Eight: Know Your Truth',[30,26,30,29,29,30,32,33]],
     ['The Show Must Go On, Probably?|The Power of No|Past = Present x Future Over Yesterday|What?!|ronny/lily|The Truth Has a Ring to It|The Audition|berkman > block',[33,30,28,31,33,29,29,35]],
     ['forgiving jeff|limonada|ben mendelsohn|all the sauces|crazytimesh*tshow|710N|candy asses|starting now',[29,28,25,31,28,29,34,29]],
     ["yikes|bestest place on the earth|you're charming|it takes a psycho|tricky legacies|the wizard|a nice meal|wow",[26,30,32,33,33,30,29,34]],
   ]},
-  {id:'boardwalk', name:'Boardwalk Empire', net:'HBO', s:[
+  {id:'boardwalk', year:2010, name:'Boardwalk Empire', net:'HBO', s:[
     ['Boardwalk Empire|The Ivory Tower|Broadway Limited|Anastasia|Nights in Ballygran|Family Limitation|Home|Hold Me in Paradise|Belle Femme|The Emerald City|Paris Green|A Return to Normalcy',[72,53,51,54,53,59,53,49,53,59,56,60]],
     ['21|Ourselves Alone|A Dangerous Maid|What Does the Bee Do?|Gimcrack & Bunkum|The Age of Reason|Peg of Old|Two Boats and a Lifeguard|Battle of the Century|Georgia Peaches|Under God\'s Power She Flourishes|To the Lost',[54,58,56,57,50,58,58,60,49,59,59,57]],
     ["Resolution|Spaghetti & Coffee|Bone for Tuna|Blue Bell Boy|You'd Be Surprised|Ging Gang Goolie|Sunday Best|The Pony|The Milkmaid's Lot|A Man, a Plan…|Two Impostors|Margate Sands",[57,58,55,56,58,56,58,58,53,57,49,60]],
     ['New York Sour|Resignation|Acres of Diamonds|All In|Erlkönig|The North Star|William Wilson|The Old Ship of Zion|Marriage and Hunting|White Horse Pike|Havre de Grace|Farewell Daddy Blues',[59,58,56,56,59,58,57,58,56,53,58,56]],
     ['Golden Days for Boys and Girls|The Good Listener|What Jesus Said|Cuanto|King of Norway|Devil You Know|Friendless Child|Eldorado',[58,55,54,58,54,57,57,59]],
   ]},
-  {id:'curb', name:'Curb Your Enthusiasm', net:'HBO', s:[
+  {id:'curb', year:2000, name:'Curb Your Enthusiasm', net:'HBO', s:[
     ['The Pants Tent|Ted and Mary|Porno Gil|The Bracelet|Interior Decorator|The Wire|AAMCO|Beloved Aunt|Affirmative Action|The Group',[29,28,28,28,29,29,27,30,30,31]],
     ['The Car Salesman|Thor|Trick or Treat|The Shrimp Incident|The Thong|The Acupuncturist|The Doll|Shaq|The Baptism|The Massage',[30,28,30,29,28,30,29,30,30,29]],
     ["Chet's Shirt|The Benadryl Brownie|Club Soda and Salt|The Nanny from Hell|The Terrorist Attack|The Special Section|The Corpse-Sniffing Dog|Krazee-Eyez Killa|Mary, Joseph and Larry|The Grand Opening",[26,29,29,29,29,29,29,29,29,29],1],
@@ -356,20 +362,20 @@ const RAW = [
     ['The Five-Foot Fence|Angel Muffin|The Mini Bar|The Watermelon|IRASSHAIMASE!|Man Fights Tiny Woman|Irma Kostroski|What Have I Done?|Igor, Gregor, & Timor|The Mormon Advantage',[30,34,37,39,35,35,33,40,34,38]],
     ['Atlanta|The Lawn Jockey|Vertical Drop, Horizontal Tug|Disgruntled|Fish Stuck|The Gettysburg Address|The Dream Scheme|The Colostomy Bag|Ken/Kendra|No Lessons Learned',[35,33,39,32,41,38,39,32,35,53]],
   ]},
-  {id:'gotham', name:'Gotham', net:'FOX', s:[
+  {id:'gotham', year:2014, name:'Gotham', net:'FOX', s:[
     ["Pilot|Selina Kyle|The Balloonman|Arkham|Viper|Spirit of the Goat|Penguin's Umbrella|The Mask|Harvey Dent|Lovecraft|Rogues' Gallery|What the Little Bird Told Him|Welcome Back, Jim Gordon|The Fearsome Dr. Crane|The Scarecrow|The Blind Fortune Teller|Red Hood|Everyone Has a Cobblepot|Beasts of Prey|Under the Knife|The Anvil or the Hammer|All Happy Families Are Alike",43,1],
     ["Damned If You Do…|Knock, Knock|The Last Laugh|Strike Force|Scarification|By Fire|Mommy's Little Monster|Tonight's the Night|A Bitter Pill to Swallow|The Son of Gotham|Worse Than a Crime|Mr. Freeze|A Dead Man Feels No Cold|This Ball of Mud and Meanness|Mad Grey Dawn|Prisoners|Into the Woods|Pinewood|Azrael|Unleashed|A Legion of Horribles|Transference",43,1],
     ['Better to Reign in Hell…|Burn the Witch…|Look Into My Eyes|New Day Rising|Anything for You|Follow the White Rabbit|Red Queen|Blood Rush|The Executioner|Time Bomb|Beware the Green-Eyed Monster|Ghosts|Smile Like You Mean It|The Gentle Art of Making Enemies|How the Riddler Got His Name|These Delicate and Dark Obsessions|The Primal Riddle|Light the Wick|All Will Be Judged|Pretty Hate Machine|Destiny Calling|Heavydirtysoul',43,1],
     ["Pax Penguina|The Fear Reaper|They Who Hide Behind Masks|The Demon's Head|The Blade's Path|Hog Day Afternoon|A Day in the Narrows|Stop Hitting Yourself|Let Them Eat Pie|Things That Go Boom|Queen Takes Knight|Pieces of a Broken Mirror|A Beautiful Darkness|Reunion|The Sinking Ship, The Grand Applause|One of My Three Soups|Mandatory Brunch Meeting|That's Entertainment|To Our Deaths and Beyond|That Old Corpse|One Bad Day|No Man's Land",43,1],
     ["Year Zero|Trespassers|Penguin, Our Hero|Ruin|Pena Dura|13 Stitches|Ace Chemicals|Nothing's Shocking|The Trial of Jim Gordon|I Am Bane|They Did What?|The Beginning…",43,1],
   ]},
-  {id:'succession', name:'Succession', net:'HBO', s:[
+  {id:'succession', year:2018, name:'Succession', net:'HBO', s:[
     ['Celebration|Sh*t Show at the F**k Factory|Lifeboats|Sad Sack Wasp Trap|I Went to Market|Which Side Are You On?|Austerlitz|Prague|Pre-Nuptial|Nobody Is Ever Missing',[61,58,57,59,56,59,58,57,59,66]],
     ['The Summer Palace|Vaulter|Hunting|Safe Room|Tern Haven|Argestes|Return|Dundee|DC|This Is Not for Tears',[60,58,60,59,60,58,59,60,61,69]],
     ['Secession|Mass in Time of War|The Disruption|Lion in the Meadow|Retired Janitors of Idaho|What It Takes|Too Much Birthday|Chiantishire|All the Bells Say',[58,60,59,59,61,59,59,65,66]],
     ["The Munsters|Rehearsal|Connor's Wedding|Honeymoon States|Kill List|Living+|Tailgate Party|America Decides|Church and State|With Open Eyes",[60,58,62,59,60,63,62,65,73,88]],
   ]},
-  {id:'league', name:'The League', net:'FX / FXX', s:[
+  {id:'league', year:2009, name:'The League', net:'FX / FXX', s:[
     ["The Draft|The Bounce Test|Sunday at Ruxin's|Mr. McGibblets|The Usual Bet|The Shiva Bowl",22,1],
     ['Vegas Draft|Bro-Lo El Cuñado|The White Knuckler|The Kluneberg|The Marathon|The Anniversary Party|Ghost Monkey|The Tie|The Expert Witness|High School Reunion|Ramona Neopolitano|Kegel the Elf|The Sacko Bowl',[24,23,21,24,21,21,21,23,22,21,25,21,23]],
     ["The Lockout|The Sukkah|The Au Pair|Ol' Smoke Crotch|Bobbum Man|Yobogoya!|Carmenjello|Thanksgiving|The Out of Towner|The Light of Genesis|The Guest Bong|St. Pete|The Funeral",22,1],
@@ -378,13 +384,13 @@ const RAW = [
     ['Sitting Shiva|Tefl-Andre|The Height Supremacist|When Rafi Met Randy|The Hot Tub|Breast Awareness Month|The Heavenly Fouler|Man Land|Taco Standard Time|Epi Sexy|EBDBBnB|Ménage à Cinq|The Beach House',22,1],
     ['That Other Draft|The Draft of Innocence|The Blind Spot|Deflategate|The Bully|The Beer Mile|Trophy Kevin|The Last Temptation of Andre|The Yank Banker|The Block|Adios y Bienvenidos|The 13 Stages of Grief|The Great Night of Shiva',22,1],
   ]},
-  {id:'leftovers', name:'The Leftovers', net:'HBO', s:[
+  {id:'leftovers', year:2014, name:'The Leftovers', net:'HBO', s:[
     ['Pilot|Penguin One, Us Zero|Two Boats and a Helicopter|B.J. and the A.C.|Gladys|Guest|Solace for Tired Feet|Cairo|The Garveys at Their Best|The Prodigal Son Returns',[72,56,52,51,55,52,57,56,56,53]],
     ['Axis Mundi|A Matter of Geography|Off Ramp|Orange Sticker|No Room at the Inn|Lens|A Most Powerful Adversary|International Assassin|Ten Thirteen|I Live Here Now',[62,57,57,55,56,57,58,62,55,72]],
     ["The Book of Kevin|Don't Be Ridiculous|Crazy Whitefella Thinking|G'Day Melbourne|It's a Matt, Matt, Matt, Matt World|Certified|The Most Powerful Man in the World (and His Identical Twin Brother)|The Book of Nora",[60,59,58,55,55,58,60,72]],
   ]},
   // ---- Already rewatched before using the tracker (pre: 1) ----
-  {id:'bcs', name:'Better Call Saul', net:'AMC', pre:1, s:[
+  {id:'bcs', year:2015, name:'Better Call Saul', net:'AMC', pre:1, s:[
     ['Uno|Mijo|Nacho|Hero|Alpine Shepherd Boy|Five-O|Bingo|RICO|Pimento|Marco',[53,46,47,47,44,42,47,47,47,49]],
     ["Switch|Cobbler|Amarillo|Gloves Off|Rebecca|Bali Ha'i|Inflatable|Fifi|Nailed|Klick",[47,47,42,43,46,46,42,48,49,48]],
     ['Mabel|Witness|Sunk Costs|Sabrosito|Chicanery|Off Brand|Expenses|Slip|Fall|Lantern',[52,51,45,47,49,47,53,49,49,56]],
@@ -392,14 +398,14 @@ const RAW = [
     ['Magic Man|50% Off|The Guy for This|Namaste|Dedicado a Max|Wexler v. Goodman|JMM|Bagman|Bad Choice Road|Something Unforgivable',[54,45,54,46,50,51,48,54,59,60]],
     ['Wine and Roses|Carrot and Stick|Rock and Hard Place|Hit and Run|Black and Blue|Axe and Grind|Plan and Execution|Point and Shoot|Fun and Games|Nippy|Breaking Bad|Waterworks|Saul Gone',[56,60,47,44,52,46,57,48,56,51,57,58,69]],
   ]},
-  {id:'bb', name:'Breaking Bad', net:'AMC', pre:1, s:[
+  {id:'bb', year:2008, name:'Breaking Bad', net:'AMC', pre:1, s:[
     ["Pilot|Cat's in the Bag…|…And the Bag's in the River|Cancer Man|Gray Matter|Crazy Handful of Nothin'|A No-Rough-Stuff-Type Deal",[58,48,48,48,48,48,48]],
     ['Seven Thirty-Seven|Grilled|Bit by a Dead Bee|Down|Breakage|Peekaboo|Negro y Azul|Better Call Saul|4 Days Out|Over|Mandala|Phoenix|ABQ',[47,46,47,47,47,47,47,47,47,47,47,47,48]],
     ['No Más|Caballo sin Nombre|I.F.T.|Green Light|Más|Sunset|One Minute|I See You|Kafkaesque|Fly|Abiquiú|Half Measures|Full Measure',47],
     ['Box Cutter|Thirty-Eight Snub|Open House|Bullet Points|Shotgun|Cornered|Problem Dog|Hermanos|Bug|Salud|Crawl Space|End Times|Face Off',[48,46,47,47,47,47,47,47,47,47,47,47,50]],
     ["Live Free or Die|Madrigal|Hazard Pay|Fifty-One|Dead Freight|Buyout|Say My Name|Gliding Over All|Blood Money|Buried|Confessions|Rabid Dog|To'hajiilee|Ozymandias|Granite State|Felina",[43,48,48,48,48,48,48,48,48,48,48,48,47,48,55,55]],
   ]},
-  {id:'dexter', name:'Dexter', net:'Showtime', pre:1, s:[
+  {id:'dexter', year:2006, name:'Dexter', net:'Showtime', pre:1, s:[
     ["Dexter|Crocodile|Popping Cherry|Let's Give the Boy a Hand|Love American Style|Return to Sender|Circle of Friends|Shrink Wrap|Father Knows Best|Seeing Red|Truth Be Told|Born Free",[53,54,50,57,55,52,52,53,55,56,53,56]],
     ["It's Alive!|Waiting to Exhale|An Inconvenient Lie|See-Through|The Dark Defender|Dex, Lies, and Videotape|That Night, a Forest Grew|Morning Comes|Resistance Is Futile|There's Something About Harry|Left Turn Ahead|The British Invasion",[53,56,52,53,56,53,55,49,50,55,51,51]],
     ['Our Father|Finding Freebo|The Lion Sleeps Tonight|All in the Family|Turning Biminese|Sí Se Puede|Easy as Pie|The Damage a Man Can Do|About Last Night|Go Your Own Way|I Had a Dream|Do You Take Dexter Morgan?',[58,49,49,54,48,54,57,54,51,50,50,51]],
@@ -409,25 +415,25 @@ const RAW = [
     ['Are You…?|Sunshine and Frosty Swirl|Buck the System|Run|Swim Deep|Do the Wrong Thing|Chemistry|Argentina|Helter Skelter|The Dark… Whatever|Do You See What I See?|Surprise, Motherfucker!',[55,58,56,53,57,54,53,57,57,54,57,56]],
     ["A Beautiful Day|Every Silver Lining…|What's Eating Dexter Morgan?|Scar Tissue|This Little Piggy|A Little Reflection|Dress Code|Are We There Yet?|Make Your Own Kind of Music|Goodbye Miami|Monkey in a Box|Remember the Monsters?",[53,57,49,50,48,55,53,52,55,53,52,56]],
   ]},
-  {id:'mrinbetween', name:'Mr Inbetween', net:'FX', pre:1, s:[
+  {id:'mrinbetween', year:2018, name:'Mr Inbetween', net:'FX', pre:1, s:[
     ["The Pee Pee Guy|Unicorns Know Everybody's Name|Captain Obvious|On Behalf of Society|Hard Worker|Your Mum's Got a Strongbox",[26,24,25,23,23,24]],
     ["Shoulda Tapped|Don't Be a Dickhead|I Came from Your Balls?|Monsters|Can't Save You|Let Me Stop You There|Watch Out for Snakes|See You in Your Dreams|Socks Are Important|Nice Face|There Rust, and Let Me Die",[26,26,25,24,28,24,27,25,28,23,26]],
     ["Coulda Shoulda|Champ|All I Ever Wanted|Cut the Crap Princess|Before I Went to War|Ray Who?|I'm Your Girl|I'll See You Soon|I'm Not Leaving",25,1],
   ]},
-  {id:'ozark', name:'Ozark', net:'Netflix', pre:1, s:[
+  {id:'ozark', year:2017, name:'Ozark', net:'Netflix', pre:1, s:[
     ['Sugarwood|Blue Cat|My Dripping Sleep|Tonight We Improvise|Ruling Days|Book of Ruth|Nest Box|Kaleidoscope|Coffee, Black|The Toll',[60,55,60,60,55,60,60,50,60,80]],
     ['Reparations|The Precious Blood of Jesus|Once a Langmore…|Stag|Game Day|Outer Darkness|One Way Out|The Big Sleep|The Badger|The Gold Coast',[60,60,55,60,60,65,60,65,65,65]],
     ['Wartime|Civil Union|Kevin Cronin Was Here|Boss Fight|It Came from Michoacán|Su Casa Es Mi Casa|In Case of Emergency|BFF|Fire Pink|All In',[60,65,60,55,65,60,60,60,65,65]],
     ["The Beginning of the End|Let the Great World Spin|City on the Make|Ace Deuce|Ellie|Sangre Sobre Todo|Sanctified|The Cousin of Death|Pick a God and Pray|You're the Boss|Pound of Flesh and Still Kickin'|Trouble the Water|Mud|A Hard Way to Go",[62,66,57,50,55,63,55,55,62,63,65,54,58,71]],
   ]},
-  {id:'sherlock', name:'Sherlock', net:'BBC One', pre:1, s:[
+  {id:'sherlock', year:2010, name:'Sherlock', net:'BBC One', pre:1, s:[
     ['A Study in Pink|The Blind Banker|The Great Game',[88,88,89]],
     ['A Scandal in Belgravia|The Hounds of Baskerville|The Reichenbach Fall',[89,88,88]],
     ['The Empty Hearse|The Sign of Three|His Last Vow|The Abominable Bride (special)',[86,86,89,89]],
     ['The Six Thatchers|The Lying Detective|The Final Problem',[88,89,89]],
   ]},
 ];
-const BUILTIN = RAW.map(r => ({ id: r.id, name: r.name, net: r.net, pre: !!r.pre, seasons: r.s.map(([t, rt, est]) => {
+const BUILTIN = RAW.map(r => ({ id: r.id, year: r.year, name: r.name, net: r.net, pre: !!r.pre, seasons: r.s.map(([t, rt, est]) => {
   const titles = t.split('|');
   return { titles, rts: titles.map((_, i) => Array.isArray(rt) ? rt[i] : rt), est: !!est };
 }) }));
@@ -435,7 +441,7 @@ const BUILTIN = RAW.map(r => ({ id: r.id, name: r.name, net: r.net, pre: !!r.pre
 // Shows added from TVmaze keep real titles, runtimes and air dates: { kind: 'tm', tm: <TVmaze id>, s: [{ e: [{ t, r, a }] }] }
 // (Firestore can't store arrays inside arrays, hence the { e: [...] } wrapper per season.)
 function customToShow(c) {
-  if (c.kind === 'tm') return { id: c.id, name: c.name, net: c.net || 'TVmaze', custom: true, tm: c.tm, tmStatus: c.status, synced: c.synced,
+  if (c.kind === 'tm') return { id: c.id, name: c.name, net: c.net || 'TVmaze', custom: true, tm: c.tm, tmStatus: c.status, synced: c.synced, img: c.img,
     seasons: c.s.map(sea => ({ titles: sea.e.map(x => x.t), rts: sea.e.map(x => x.r || c.rt), est: sea.e.some(x => !x.r && x.a && x.a <= Date.now()), airs: sea.e.map(x => x.a) })) };
   return { id: c.id, name: c.name, net: c.net || 'Added by you', custom: true,
     seasons: c.eps.map(n => ({ titles: Array.from({ length: n }, (_, i) => 'Episode ' + (i + 1)), rts: Array(n).fill(c.rt), est: true })) };
@@ -459,7 +465,10 @@ const LS_KEY = 'tvshows.v1';
 // ended: finish date for shows rewatched before tracking; cleared: those shows reset to start a new rewatch
 // current: the show on the Home screen (set when you pick one or tick an episode)
 // seeds: TVmaze shows added automatically once (so removing one doesn't bring it back)
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, seeds: [] };
+// Posters are only ever loaded from TVmaze's own image server (never copied), as TVmaze asks.
+const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/uploads\/images\/[\w\/.-]+$/.test(u) && u.length < 300;
+// posters: TVmaze match for built-in / hand-entered shows { id: { u: posterUrl or '', tm: TVmaze id or 0 } }
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, seeds: [], posters: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'all';
@@ -482,7 +491,7 @@ function sanitizeCustom(list) {
       const rt = +c.rt >= 1 && +c.rt <= 600 ? Math.round(+c.rt) : 45;
       if (!name || !(tm > 0) || !seasons.length) continue;
       out.push({ id: c.id, kind: 'tm', tm, name, net: typeof c.net === 'string' ? c.net.slice(0, 40) : '', status: typeof c.status === 'string' ? c.status.slice(0, 20) : '',
-        rt, s: seasons, synced: typeof c.synced === 'number' ? c.synced : 0 });
+        rt, s: seasons, synced: typeof c.synced === 'number' ? c.synced : 0, img: okPoster(c.img) ? c.img : '' });
       continue;
     }
     const eps = Array.isArray(c.eps) ? c.eps.slice(0, 50).map(n => Math.floor(+n)).filter(n => n >= 1 && n <= 300) : [];
@@ -497,6 +506,9 @@ function sanitize(d) {
   SHOWS = buildShows(out.custom);
   if (d && typeof d.current === 'string' && SHOWS.some(s => s.id === d.current)) out.current = d.current;
   out.seeds = d && Array.isArray(d.seeds) ? d.seeds.filter(x => Number.isInteger(x)).slice(0, 50) : [];
+  out.posters = {};
+  const ps = d && typeof d.posters === 'object' && d.posters ? d.posters : {};
+  for (const s of SHOWS) { const v = ps[s.id]; if (v && typeof v === 'object' && (v.u === '' || okPoster(v.u))) out.posters[s.id] = { u: v.u, tm: Number.isInteger(v.tm) ? v.tm : 0 }; }
   const okTs = v => typeof v === 'number' && isFinite(v) && v > 0;
   const obj = k => d && typeof d[k] === 'object' && d[k] ? d[k] : {};
   const st = obj('started'), en = obj('ended'), cl = obj('cleared');
@@ -920,13 +932,14 @@ function showHTML(s) {
       <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : st.caught ? (st.nextAir && st.nextAir.a ? 'Next ' + airLabel(st.nextAir.a).slice(5) : 'Caught up') : fmtH(st.totalMin - st.wMin) + ' left'}</span></div>
     </div></div></button>
     <div class="body">
-      <div class="picrow"><label>${art[s.id] ? 'Change picture' : 'Add picture'}<input type="file" accept="image/*" data-pic="${s.id}"></label>${art[s.id] ? `<button data-unpic="${s.id}">Remove picture</button>` : ''}</div>
+      <div class="picrow"><label>${art[s.id] ? 'Change picture' : posterOf(s) ? 'Use my own picture' : 'Add picture'}<input type="file" accept="image/*" data-pic="${s.id}"></label>${art[s.id] ? `<button data-unpic="${s.id}">${posterOf(s) ? 'Back to poster' : 'Remove picture'}</button>` : ''}</div>
       ${st.next ? `<button class="next" data-next="${s.id}">✓ Watched S${st.next.si} E${st.next.e} · ${esc(s.seasons[st.next.si - 1].titles[st.next.e - 1])} (${rtOfEp(s, st.next.si, st.next.e)}m)</button>` : ''}
       ${syncRow}${startRow}
       <div class="timing">${timing}</div>
       ${doneRow}${prevRow}
       ${seasons}
       ${st.wEps && !st.virtual ? `<button class="reset" data-reset="${s.id}">Reset progress for ${esc(s.name)}</button>` : ''}
+      ${tmIdOf(s) ? `<div style="margin-top:8px"><a class="tmlink" href="https://www.tvmaze.com/shows/${tmIdOf(s)}" target="_blank" rel="noopener">View ${esc(s.name)} on TVmaze ↗</a></div>` : ''}
       ${s.custom ? `<button class="reset" data-rmshow="${s.id}">Remove ${esc(s.name)} from the tracker</button>` : ''}
     </div>
   </article>`;
@@ -940,10 +953,16 @@ const HUES = [262, 12, 140, 205, 30, 48, 220, 0, 160, 290];
 function artHTML(s, small) {
   const src = art[s.id], cls = 'art' + (small ? ' sm' : '');
   if (typeof src === 'string' && src.startsWith('data:image/')) return `<div class="${cls}"><img src="${src}" alt=""></div>`;
-  const h = HUES[SHOWS.indexOf(s) % HUES.length];
+  const h = HUES[Math.max(0, SHOWS.indexOf(s)) % HUES.length];
   const ini = s.name.replace(/^The /, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<div class="${cls}" style="background:linear-gradient(160deg,hsl(${h} 55% 45%),hsl(${h} 50% 22%))">${ini}</div>`;
+  const poster = posterOf(s);
+  return `<div class="${cls}" style="background:linear-gradient(160deg,hsl(${h} 55% 45%),hsl(${h} 50% 22%))">${ini}${poster ? `<img class="poster" src="${poster}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</div>`;
 }
+function posterOf(s) {
+  const u = s.tm ? s.img : state.posters[s.id] && state.posters[s.id].u;
+  return okPoster(u) ? u : '';
+}
+const tmIdOf = s => s.tm || (state.posters[s.id] && state.posters[s.id].tm) || 0;
 function saveArtLocal() { try { localStorage.setItem(ART_KEY, JSON.stringify(art)); } catch (e) {} }
 function shrinkImage(file) {
   return new Promise((res, rej) => {
@@ -1112,7 +1131,8 @@ function tmEntry(d) {
       a: e.airstamp ? Date.parse(e.airstamp) || null : (e.airdate ? Date.parse(e.airdate + 'T12:00:00Z') || null : null) })) }));
   return { id: 'ctm' + d.id, kind: 'tm', tm: d.id, name: String(d.name || 'Untitled').slice(0, 60),
     net: String((d.network && d.network.name) || (d.webChannel && d.webChannel.name) || '').slice(0, 40),
-    status: String(d.status || '').slice(0, 20), rt: d.averageRuntime || d.runtime || 45, s: seasons, synced: Date.now() };
+    status: String(d.status || '').slice(0, 20), rt: d.averageRuntime || d.runtime || 45, s: seasons, synced: Date.now(),
+    img: d.image && okPoster(d.image.medium) ? d.image.medium : '' };
 }
 const tmFetch = async tm => tmEntry(await tmGet('/shows/' + tm + '?embed=episodes'));
 
@@ -1165,6 +1185,27 @@ async function afterLoad() {
   for (const c of state.custom.slice()) {
     if (c.kind === 'tm' && c.status !== 'Ended' && Date.now() - (c.synced || 0) > 6 * 3600e3) await syncShow(c.id, true);
   }
+  await findPosters();
+}
+// Match each built-in or hand-entered show to TVmaze by name (and premiere year where known).
+async function findPosters() {
+  let found = 0;
+  for (const s of SHOWS.slice()) {
+    if (s.tm || state.posters[s.id]) continue;
+    try {
+      const hits = await tmGet('/search/shows?q=' + encodeURIComponent(s.name));
+      const yr = d => d.premiered ? +d.premiered.slice(0, 4) : 0;
+      const same = d => d.name && d.name.toLowerCase() === s.name.toLowerCase();
+      const pick = (s.year && (hits.find(h => same(h.show) && Math.abs(yr(h.show) - s.year) <= 1) || hits.find(h => Math.abs(yr(h.show) - s.year) <= 1)))
+        || hits.find(h => same(h.show)) || null;
+      const d = pick && pick.show;
+      state.posters[s.id] = { u: d && d.image && okPoster(d.image.medium) ? d.image.medium : '', tm: d ? d.id : 0 };
+      found++;
+      if (found % 4 === 0) changed();
+      await new Promise(r => setTimeout(r, 350));   // stay well inside TVmaze's 20 requests / 10 s
+    } catch (e) { break; }   // offline or TVmaze unavailable: try again next time the app opens
+  }
+  if (found) changed();
 }
 
 let tmTimer = null, tmSeq = 0;
@@ -1237,6 +1278,7 @@ document.getElementById('addform-form').addEventListener('submit', ev => {
   if (!(rt >= 1 && rt <= 300)) { err.textContent = 'Enter a typical episode length in minutes (1–300).'; return; }
   const id = 'c' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '').padEnd(6, '0');
   state.custom.push({ id, name, net, eps, rt });
+  setTimeout(findPosters, 500);
   SHOWS = buildShows(state.custom);
   watchArt(showById(id));
   open.add(id); filter = 'all';
@@ -1282,7 +1324,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds, posters: state.posters } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -1347,7 +1389,7 @@ async function flush() {
   if (!ref || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds, updated: Date.now() });
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds, posters: state.posters, updated: Date.now() });
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }

@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and gives basic offline support.
 // The page is fetched network-first so you always get the latest version when online.
-const CACHE_NAME = 'tvshows-v1';
+const CACHE_NAME = 'tvshows-v2';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './cloud.js'];
 
 self.addEventListener('install', (event) => {
@@ -11,7 +11,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
+      Promise.all(names.filter((n) => n !== CACHE_NAME && n !== 'tvshows-posters').map((n) => caches.delete(n))))
   );
   self.clients.claim();
 });
@@ -25,6 +25,14 @@ self.addEventListener('fetch', (event) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then((c) => c.put(req, copy)); }
       return res;
     })));
+    return;
+  }
+  // Posters from TVmaze: keep a browser copy so they show offline (TVmaze allows caching its images).
+  if (req.url.startsWith('https://static.tvmaze.com/')) {
+    event.respondWith(caches.open('tvshows-posters').then((c) => c.match(req).then((hit) => hit || fetch(req).then((res) => {
+      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
+      return res;
+    }))));
     return;
   }
   if (!req.url.startsWith(self.location.origin)) return;
