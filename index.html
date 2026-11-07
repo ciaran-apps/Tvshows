@@ -519,7 +519,7 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {}, tmEp: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
-let filter = 'all';
+let filter = 'unwatched';
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 try { const c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && c.shows) state = sanitize(c); } catch (e) {}
 
@@ -694,13 +694,13 @@ function syncModeUI() {
 function setMode(m) {
   mode = m === 'watch' ? 'watch' : 'rewatch';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
-  filter = 'all';
+  filter = 'unwatched';
   syncModeUI(); render();
 }
 function setSub(g) {
   sub = g === 'wife' ? 'wife' : 'me';
   try { localStorage.setItem(SUB_KEY, sub); } catch (e) {}
-  filter = 'all';
+  filter = 'unwatched';
   syncModeUI(); render();
 }
 
@@ -982,11 +982,13 @@ function renderSummary() {
     </div>`;
 }
 
+// Unwatched = started, with aired episodes still to see (caught-up shows only appear under All).
+function filterKey(s) { const st = showStats(s); return st.status === 'watching' ? (st.caught ? 'caught' : 'unwatched') : st.status; }
 function renderTabs() {
   const list = modeShows();
-  const counts = { all: list.length, watching: 0, new: 0, done: 0 };
-  list.forEach(s => counts[showStats(s).status]++);
-  const tabs = [['all', 'All'], ['watching', 'Watching'], ['new', 'Not started'], ['done', 'Finished']];
+  const counts = { unwatched: 0, new: 0, done: 0, all: list.length };
+  list.forEach(s => { const k = filterKey(s); if (k in counts) counts[k]++; });
+  const tabs = [['unwatched', 'Unwatched'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
   document.getElementById('tabs').innerHTML = tabs.map(([k, l]) =>
     `<button data-tab="${k}" class="${filter === k ? 'on' : ''}">${l} (${counts[k]})</button>`).join('');
 }
@@ -1128,7 +1130,7 @@ document.addEventListener('change', async ev => {
 function renderList() {
   // Shortest time left first; finished shows go to the bottom.
   const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
-  const items = modeShows().filter(s => filter === 'all' || showStats(s).status === filter)
+  const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter)
     .sort((a, b) => (left(a) - left(b)) || a.name.localeCompare(b.name));
   document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
