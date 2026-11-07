@@ -39,6 +39,19 @@
   .stat{background:#ffffff0a;border-radius:10px;padding:10px 12px}
   .stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
   .stat div{font-size:16px;font-weight:600}
+  .stat .of{color:var(--muted);font-weight:500;font-size:13px}
+  .stat .sub,.sx-row .sub{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+  .sx-k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:2px}
+  .sx-big{font-size:34px;font-weight:700;line-height:1.1}
+  .sx-big small{font-size:18px;font-weight:600;color:var(--muted);margin-left:1px}
+  .sx-big.sm{font-size:24px}
+  .sx-big.sm small{font-size:14px}
+  .sx-ctx{color:var(--muted);font-size:13px;margin:3px 0 10px;line-height:1.4}
+  .sx-top{display:flex;flex-direction:column;gap:10px;background:#ffffff0a;border-radius:10px;padding:11px 12px}
+  .sx-row-t{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+  .sx-row-t span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sx-mini{height:4px;border-radius:9px;background:#ffffff12;margin-top:5px;overflow:hidden}
+  .sx-mini i{display:block;height:100%;background:var(--accent);border-radius:9px}
   @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
 
   .modes{display:flex;gap:4px;margin:2px 0 12px;border-bottom:1px solid var(--line)}
@@ -755,7 +768,7 @@ function watchedSince(ts) {
   let n = 0, min = 0;
   for (const s of modeShows()) {
     const w = state.shows[s.id] || {};
-    for (const k in w) if (w[k] >= ts) { const [si, e] = k.split('-').map(Number); n++; min += rtOfEp(s, si, e); }
+    for (const k in w) if (w[k] >= ts) { const [si, e] = k.split('-').map(Number); if (!s.seasons[si - 1]) continue; n++; min += rtOfEp(s, si, e) || 0; }
   }
   return { n, min };
 }
@@ -1041,37 +1054,91 @@ function renderHistory() {
 }
 
 // ---------- Render ----------
+// Big totals in words people can picture: days and hours, how long that is nonstop, and at 2 hours a night.
+const num = n => Math.round(n).toLocaleString();
+function spanWords(days) {
+  if (days >= 365) { const y = Math.floor(days / 365), mo = Math.round((days - y * 365) / 30.4); return plural(y, 'year') + (mo ? ' ' + plural(mo, 'month') : ''); }
+  if (days >= 60) return plural(Math.round(days / 30.4), 'month');
+  if (days >= 14) return plural(Math.round(days / 7), 'week');
+  return plural(Math.max(1, Math.round(days)), 'day');
+}
+function bigTime(m) {
+  m = Math.round(m);
+  if (m < 24 * 60) return fmtH(m);
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60);
+  return `${num(d)}<small>d</small> ${h}<small>h</small>`;
+}
+// Shorter version for lists: 2 days or more as "13d 8h", otherwise hours and minutes.
+const midTime = m => { m = Math.round(m); if (m < 48 * 60) return fmtH(m); const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return h ? `${d}d ${h}h` : `${d}d`; };
+function timeContext(m) {
+  if (m < 120) return '';
+  const bits = [`${num(m / 60)} hours`];
+  if (m >= 1440) bits.push(`${spanWords(m / 1440)} nonstop`);
+  bits.push(`${spanWords(m / 120)} at 2 hours a night`);
+  return bits.join(' · ');
+}
 function renderSummary() {
-  let tMin = 0, wMin = 0, tEps = 0, wEps = 0, first = null, doneShows = 0, trackedMin = 0;
-  const list = modeShows();
+  let tMin = 0, wMin = 0, tEps = 0, wEps = 0, first = null, doneShows = 0, trackedMin = 0, caught = 0, inProg = 0, fresh = 0;
+  const list = modeShows(), perShow = [], perNet = new Map();
   for (const s of list) {
     const st = showStats(s);
     tMin += st.totalMin; wMin += st.wMin; tEps += st.totalEps; wEps += st.wEps;
     if (!st.virtual) trackedMin += st.wMin;
     if (!st.virtual && st.start && (first === null || st.start < first)) first = st.start;
-    if (st.status === 'done') doneShows++;
+    if (st.status === 'done') doneShows++; else if (st.status === 'new') fresh++; else if (st.caught) caught++; else inProg++;
+    if (st.wMin > 0) {
+      perShow.push({ s, min: st.wMin, eps: st.wEps });
+      const n = (s.net || '').trim() || 'Other'; perNet.set(n, (perNet.get(n) || 0) + st.wMin);
+    }
   }
-  const pct = tMin ? wMin / tMin * 100 : 0;
-  let days = '—', pace = '—', eta = '—';
-  if (first) {
-    const d = daysSpan(first, Date.now());
-    days = plural(d, 'day');
-    const perDay = trackedMin / d;
-    pace = fmtH(perDay) + ' / day';
-    eta = wMin >= tMin ? 'Done 🎉' : perDay > 0 ? fmtD(Date.now() + (tMin - wMin) / perDay * DAY) : '—';
-  }
-  document.getElementById('summary').innerHTML = `
-    <div class="big"><b>${fmtH(wMin)}</b><span>of ${fmtH(tMin)} watched · ${pct.toFixed(1)}%</span></div>
-    <div class="bar${pct >= 100 ? ' done' : ''}"><i style="width:${pct}%"></i></div>
-    <div class="stats">
-      <div class="stat"><small>Episodes</small><div>${wEps} / ${tEps}</div></div>
-      <div class="stat"><small>Shows done</small><div>${doneShows} / ${list.length}</div></div>
-      ${rw() ? `<div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
+  const left = Math.max(0, tMin - wMin), pct = tMin ? wMin / tMin * 100 : 0;
+  // Recent viewing (only episodes with a known watch date)
+  const now = Date.now(), today0 = new Date(new Date().setHours(0, 0, 0, 0)).getTime(), m0 = new Date(new Date(today0).setDate(1)).getTime();
+  const wk = watchedSince(today0 - 6 * DAY), mo = watchedSince(m0), td = watchedSince(today0);
+  let rwBits = '';
+  if (rw()) {
+    let days = '—', pace = '—', eta = '—';
+    if (first) {
+      const d = daysSpan(first, now), perDay = trackedMin / d;
+      days = plural(d, 'day'); pace = fmtH(perDay) + ' / day';
+      eta = wMin >= tMin ? 'Done 🎉' : perDay > 0 ? fmtD(now + left / perDay * DAY) : '—';
+    }
+    rwBits = `<div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
       <div class="stat"><small>Your pace</small><div>${pace}</div></div>
-      <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>`
-      : `<div class="stat"><small>Watched this week</small><div>${fmtH(watchedSince(startOfDay(Date.now()) - 6 * DAY).min)}</div></div>
-      <div class="stat"><small>Caught up on</small><div>${list.filter(x => showStats(x).caught).length}</div></div>`}
-    </div>`;
+      <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>`;
+  }
+  perShow.sort((a, b) => b.min - a.min);
+  const top = perShow.slice(0, 5), topMax = top.length ? top[0].min : 1;
+  const nets = [...perNet.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const avgEp = wEps ? wMin / wEps : 0;
+  document.getElementById('summary').innerHTML = `
+    <div class="sx-k">Watched</div>
+    <div class="sx-big">${bigTime(wMin)}</div>
+    <div class="sx-ctx">${timeContext(wMin) || '&nbsp;'}</div>
+    <div class="bar${pct >= 100 ? ' done' : ''}"><i style="width:${pct}%"></i></div>
+    <div class="sx-ctx" style="margin:-4px 0 14px">${pct.toFixed(1)}% of everything ${rw() ? 'in Rewatching' : 'that’s aired in this tab'}</div>
+    ${left ? `<div class="sx-k">Still to watch</div>
+    <div class="sx-big sm">${bigTime(left)}</div>
+    <div class="sx-ctx" style="margin-bottom:14px">${timeContext(left) || num(tEps - wEps) + ' episodes'}${left >= 120 ? ` · ${num(tEps - wEps)} episodes` : ''}</div>` : ''}
+    <div class="stats">
+      <div class="stat"><small>Episodes watched</small><div>${num(wEps)}<span class="of"> / ${num(tEps)}</span></div></div>
+      <div class="stat"><small>Average episode</small><div>${avgEp ? fmtH(avgEp) : '—'}</div></div>
+      <div class="stat"><small>Finished</small><div>${plural(doneShows, 'show')}</div></div>
+      <div class="stat"><small>${rw() ? 'In progress' : 'Watching'}</small><div>${plural(inProg, 'show')}</div></div>
+      ${rw() ? '' : `<div class="stat"><small>Caught up</small><div>${plural(caught, 'show')}</div></div>`}
+      <div class="stat"><small>Not started</small><div>${plural(fresh, 'show')}</div></div>
+      ${rwBits}
+    </div>
+    <div class="sx-k" style="margin-top:16px">Recently</div>
+    <div class="stats">
+      <div class="stat"><small>Today</small><div>${td.min ? fmtH(td.min) : '—'}</div><span class="sub">${plural(td.n, 'episode')}</span></div>
+      <div class="stat"><small>Last 7 days</small><div>${wk.min ? fmtH(wk.min) : '—'}</div><span class="sub">${plural(wk.n, 'episode')}${wk.min ? ' · ' + fmtH(wk.min / 7) + '/day' : ''}</span></div>
+      <div class="stat" style="grid-column:1/-1"><small>${new Date(today0).toLocaleDateString(undefined, { month: 'long' })} so far</small><div>${mo.min ? fmtH(mo.min) : '—'}</div><span class="sub">${plural(mo.n, 'episode')}</span></div>
+    </div>
+    ${top.length ? `<div class="sx-k" style="margin-top:16px">Most watched</div>
+    <div class="sx-top">${top.map(x => `<div class="sx-row"><div class="sx-row-t"><span>${esc(x.s.name)}</span><span>${midTime(x.min)}</span></div><div class="sx-mini"><i style="width:${x.min / topMax * 100}%"></i></div><div class="sub">${plural(x.eps, 'episode')}${x.min >= 48 * 60 ? ' · ' + num(x.min / 60) + ' hours' : ''}</div></div>`).join('')}</div>` : ''}
+    ${nets.length > 1 ? `<div class="sx-k" style="margin-top:16px">Top channels</div>
+    <div class="stats">${nets.map(([n, m]) => `<div class="stat"><small>${esc(n)}</small><div>${midTime(m)}</div><span class="sub">${Math.round(m / wMin * 100)}% of your watching</span></div>`).join('')}</div>` : ''}`;
 }
 
 // Unwatched = started, with aired episodes still to see (caught-up shows only appear under All).
