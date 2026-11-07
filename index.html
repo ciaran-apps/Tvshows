@@ -917,20 +917,18 @@ const inDays = ts => { const d = Math.round((startOfDay(ts) - startOfDay(Date.no
 const clock = ts => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 function renderUpcoming() {
   const el = document.getElementById('upcoming'); if (!el) return;
-  const now = Date.now(), soon = [], tba = [], ready = [];
+  const now = Date.now(), soon = [], tba = [];
   const airing = modeShows().filter(s => s.tm);
   for (const s of airing) {
-    const w = state.shows[s.id] || {};
     let tbaN = 0;
     s.seasons.forEach((sea, i) => sea.titles.forEach((t, j) => {
       const a = sea.airs[j], ep = { s, si: i + 1, e: j + 1, t, a, rt: sea.rts[j] };
       if (a == null) tbaN++;
       else if (a > now) soon.push(ep);
-      else if (now - a < 14 * DAY && !w[(i + 1) + '-' + (j + 1)]) ready.push(ep);
     }));
     if (tbaN) tba.push({ s, n: tbaN });
   }
-  soon.sort((a, b) => a.a - b.a); ready.sort((a, b) => b.a - a.a);
+  soon.sort((a, b) => a.a - b.a);
   const row = (x, isReady) => `<button class="uprow${isReady ? ' ready' : ''}" data-goshow="${x.s.id}">${artHTML(x.s, true)}<div class="hinfo">
       <div class="hname">${esc(x.s.name)}</div><div class="hmeta">S${x.si} E${x.e} · ${esc(x.t)}</div></div>
       <div class="when2">${isReady ? `<b>Ready</b>Aired ${relDay(x.a)}` : `<b>${inDays(x.a)}</b>${clock(x.a)}`}</div></button>`;
@@ -944,7 +942,6 @@ function renderUpcoming() {
   const busy = airing.some(s => syncing.has(s.id));
   el.innerHTML = `<div class="up-top"><span>${airing.length ? `${plural(airing.length, 'show')} from TVmaze` : ''}</span>
       ${anyRunning ? `<button class="sbtn" data-syncall="1"${busy ? ' disabled' : ''}>${busy ? 'Syncing…' : '⟳ Check for new episodes'}</button>` : ''}</div>
-    ${ready.length ? `<h2>Ready to watch <span>aired in the last 2 weeks</span></h2>${ready.map(x => row(x, true)).join('')}` : ''}
     ${groups.length ? groups.map(g => `<h2>${relDay(g.ts)} <span>${Math.round((startOfDay(g.ts) - startOfDay(now)) / DAY) < 7 ? new Date(g.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}</span></h2>${g.items.map(x => row(x)).join('')}`).join('')
       : `<h2>Coming up</h2><div class="empty small">${airing.length ? 'No air dates announced yet. Check again later, or tap Check for new episodes.' : 'Nothing here yet. Add a show that’s still airing from Shows → ＋ Add a show, and its upcoming episodes will appear here.'}</div>`}
     ${tba.length ? `<h2>Date not announced</h2>${tba.map(x => `<button class="uprow" data-goshow="${x.s.id}">${artHTML(x.s, true)}<div class="hinfo"><div class="hname">${esc(x.s.name)}</div>
