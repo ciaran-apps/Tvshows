@@ -298,7 +298,7 @@
     </div>
     <div class="sg">
       <h2 style="margin-top:16px">Import from SeriesGuide</h2>
-      <p>Choose a SeriesGuide shows export (.json). You'll first see how it compares with this app: shows missing from either one, and shows with fewer episodes ticked here. Then you choose what to bring across. Missing shows are found on TVmaze and added to Watching under Just me. Shows in Rewatching are left alone. Keep the app open while it works.</p>
+      <p>Choose a SeriesGuide shows export (.json). You'll first see how it compares with this app: shows missing from either one, and shows with fewer episodes ticked here. Then you choose what to bring across. Missing shows are found on TVmaze and added to Watching under My Shows. Shows in Rewatching are left alone. Keep the app open while it works.</p>
       <div class="bk-btns"><label class="bk-file bk-go">Choose SeriesGuide file<input type="file" accept=".json,application/json" id="sg-file"></label>
         <button type="button" id="sg-stop" hidden>Stop</button></div>
       <div id="sg-prog" hidden><div class="bar" style="margin:12px 0 6px"><i id="sg-bar" style="width:0%"></i></div><div class="bk-msg" id="sg-msg" role="status"></div></div>
@@ -1779,7 +1779,7 @@ function renderCompare() {
     : `<div class="cmp ok"><h3>${empty}</h3></div>`;
   report.innerHTML =
     box('In SeriesGuide, not in this app', missing.map(sg => li(esc(sg.title) + (sg.hidden ? ' <span style="opacity:.7">(hidden in SeriesGuide)</span>' : ''))),
-      `<button type="button" class="bk-go go" data-sgdo="missing">Add ${plural(missing.length, 'show')} to Watching → Just me</button>`, '✓ Every SeriesGuide show is in this app') +
+      `<button type="button" class="bk-go go" data-sgdo="missing">Add ${plural(missing.length, 'show')} to Watching → My Shows</button>`, '✓ Every SeriesGuide show is in this app') +
     box('Fewer episodes ticked here', behind.map(x => li(`${esc(x.sg.title)} · ${x.have} here, ${x.want} in SeriesGuide${x.where ? ` · <span class="where">${x.where}</span>` : ''}`)),
       `<button type="button" class="bk-go go" data-sgdo="behind">Tick the missing episodes</button>`, '✓ Nothing ticked in SeriesGuide is missing here') +
     box('In this app, not in SeriesGuide', extra.map(s => li(`${esc(s.name)} · <span class="where">${whereOf(s)}</span>`)), '', '✓ Every show here is in SeriesGuide');
@@ -1790,7 +1790,7 @@ document.getElementById('sg-report').addEventListener('click', ev => {
   const report = document.getElementById('sg-report');
   if (b.dataset.sgdo === 'missing') {
     const l = report._missing || []; if (!l.length) return;
-    confirmBox(`Add ${plural(l.length, 'show')} from SeriesGuide to Watching → Just me?`, 'Add', async () => {
+    confirmBox(`Add ${plural(l.length, 'show')} from SeriesGuide to Watching → My Shows?`, 'Add', async () => {
       if (mode !== 'watch') setMode('watch');
       await importSeriesGuide(l); sgAfter();
     });
