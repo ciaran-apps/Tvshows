@@ -44,6 +44,10 @@
   .modes{display:flex;gap:4px;margin:2px 0 12px;border-bottom:1px solid var(--line)}
   .modes button{flex:1;background:none;border:0;border-bottom:2px solid transparent;padding:8px 4px 10px;font-size:15px;font-weight:600;color:var(--muted);margin-bottom:-1px}
   .modes button.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .subs{display:flex;gap:6px;margin:-2px 0 12px}
+  .subs[hidden]{display:none}
+  .subs button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px;font-size:13.5px;font-weight:600;color:var(--muted)}
+  .subs button.on{background:#a998f526;border-color:var(--accent);color:var(--accent)}
   .movebtn{color:var(--accent)!important;opacity:1!important}
   .views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:4px}
   .views button{flex:1;min-width:0;background:none;border:0;border-radius:9px;padding:9px 2px;font-size:13px;font-weight:600;color:var(--muted)}
@@ -235,6 +239,10 @@
 <div class="modes" role="tablist" aria-label="Watching or rewatching">
   <button data-mode="watch">Watching</button>
   <button data-mode="rewatch">Rewatching</button>
+</div>
+<div class="subs" id="subs" hidden>
+  <button data-sub="me">Just me</button>
+  <button data-sub="wife">With my wife</button>
 </div>
 <nav class="views" id="views">
   <button data-view="home" class="on">Home</button>
@@ -478,7 +486,8 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 // posters: TVmaze match for built-in / hand-entered shows { id: { u: posterUrl or '', tm: TVmaze id or 0 } }
 // lists: which side a show is on, 'watch' or 'rewatch' (default: the original shows are rewatches, shows you add are watches)
 // cur: the Home show for each side
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, seeds: [], posters: {} };
+// groups: within Watching, 'me' (just me) or 'wife' (with my wife)
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'all';
@@ -517,6 +526,9 @@ function sanitize(d) {
   out.lists = {}; out.cur = { watch: null, rewatch: null };
   const ls = d && typeof d.lists === 'object' && d.lists ? d.lists : {};
   for (const s of SHOWS) if (ls[s.id] === 'watch' || ls[s.id] === 'rewatch') out.lists[s.id] = ls[s.id];
+  out.groups = {};
+  const gs = d && typeof d.groups === 'object' && d.groups ? d.groups : {};
+  for (const s of SHOWS) if (gs[s.id] === 'me' || gs[s.id] === 'wife') out.groups[s.id] = gs[s.id];
   const cr = d && typeof d.cur === 'object' && d.cur ? d.cur : {};
   for (const m of ['watch', 'rewatch']) if (typeof cr[m] === 'string' && SHOWS.some(s => s.id === cr[m])) out.cur[m] = cr[m];
   // Before the Watching / Rewatching toggle there was a single current show
@@ -608,16 +620,35 @@ let mode = 'rewatch';
 try { const m = localStorage.getItem(MODE_KEY); if (m === 'watch' || m === 'rewatch') mode = m; } catch (e) {}
 function defaultList(s, lists) { const l = (lists || state.lists)[s.id]; return l === 'watch' || l === 'rewatch' ? l : (s.custom ? 'watch' : 'rewatch'); }
 const listOf = s => defaultList(s);
-const inMode = s => listOf(s) === mode;
+// Within Watching: shows you watch on your own, or with your wife
+const SUB_KEY = 'tvshows.sub';
+const GROUPS = { me: 'Just me', wife: 'With my wife' };
+let sub = 'me';
+try { const g = localStorage.getItem(SUB_KEY); if (g === 'me' || g === 'wife') sub = g; } catch (e) {}
+const groupOf = s => state.groups[s.id] === 'wife' ? 'wife' : 'me';
+const inMode = s => listOf(s) === mode && (mode === 'rewatch' || groupOf(s) === sub);
 const modeShows = () => SHOWS.filter(inMode);
 const rw = () => mode === 'rewatch';
 function setCur(id) { const s = showById(id); if (s) state.cur[listOf(s)] = id; }
+// Watching has no Home tab and no time-taken tracking: its shows depend on when episodes air.
+function syncModeUI() {
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  document.querySelectorAll('[data-sub]').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
+  document.getElementById('subs').hidden = mode !== 'watch';
+  document.querySelector('[data-view="home"]').hidden = mode === 'watch';
+  if (mode === 'watch' && !document.getElementById('view-home').hidden) showView('shows');
+}
 function setMode(m) {
   mode = m === 'watch' ? 'watch' : 'rewatch';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
   filter = 'all';
-  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  render();
+  syncModeUI(); render();
+}
+function setSub(g) {
+  sub = g === 'wife' ? 'wife' : 'me';
+  try { localStorage.setItem(SUB_KEY, sub); } catch (e) {}
+  filter = 'all';
+  syncModeUI(); render();
 }
 
 // ---------- Home: the show you're watching now ----------
@@ -824,7 +855,8 @@ function renderHistory() {
     const s = showById(h.id), dated = h.start && h.end, d = dated ? daysSpan(h.start, h.end) : 0;
     return `<div class="hrow">${artHTML(s, true)}<div class="hinfo">
       <div class="hname">${esc(s.name)}${h.logged || h.before ? '' : ' <span class="pill done">Just finished</span>'}</div>
-      ${dated ? `<div class="hmeta">${fmtD(h.start)} → ${fmtD(h.end)}</div>
+      ${!rw() ? `<div class="hmeta">${h.end ? 'Finished ' + fmtD(h.end) + ' · ' : ''}${plural(h.eps, 'episode')} · ${fmtH(h.min)}</div>`
+      : dated ? `<div class="hmeta">${fmtD(h.start)} → ${fmtD(h.end)}</div>
       <div class="hmeta"><b>${plural(d, 'day')}</b> · ${fmtH(h.min)} · ${fmtH(h.min / d)}/day</div>`
       : `<div class="hmeta">Dates not set · ${fmtH(h.min)}</div>${h.logged ? '' : `<div class="hmeta">Open ${esc(s.name)} in Shows to add them</div>`}`}</div>
       ${h.logged ? `<button class="hdel" data-delhist="${esc(h.h)}" aria-label="Delete this entry">✕</button>` : ''}</div>`;
@@ -834,8 +866,8 @@ function renderHistory() {
     const d = daysSpan(st.start, now), pct = (st.totalMin ? st.wMin / st.totalMin * 100 : 0), perDay = st.wMin / d;
     return `<div class="hrow">${artHTML(s, true)}<div class="hinfo">
       <div class="hname">${esc(s.name)}</div>
-      <div class="hmeta">Started ${fmtD(st.start)} · day <b>${d}</b></div>
-      <div class="hmeta">${st.caught ? 'Caught up · waiting for new episodes' : `${Math.floor(pct)}% · ${fmtH(st.totalMin - st.wMin)} left${perDay > 0 ? ' · finish ~' + fmtD(now + (st.totalMin - st.wMin) / perDay * DAY) : ''}`}</div>
+      ${rw() ? `<div class="hmeta">Started ${fmtD(st.start)} · day <b>${d}</b></div>` : ''}
+      <div class="hmeta">${st.caught ? 'Caught up · waiting for new episodes' : `${Math.floor(pct)}% · ${fmtH(st.totalMin - st.wMin)} left${rw() && perDay > 0 ? ' · finish ~' + fmtD(now + (st.totalMin - st.wMin) / perDay * DAY) : ''}`}</div>
       <div class="bar" style="margin:6px 0 0;height:4px"><i style="width:${pct}%"></i></div></div></div>`;
   }).join('') : `<div class="empty small">Nothing in progress.</div>`;
 
@@ -859,7 +891,7 @@ function renderHistory() {
 
   document.getElementById('history').innerHTML = `
     <h2>${rw() ? 'Finished rewatches' : 'Finished'}</h2>${doneHTML}
-    <h2>In progress</h2>${progHTML}
+    <h2>${rw() ? 'In progress' : 'Watching now'}</h2>${progHTML}
     <h2>Watch log</h2>${logHTML}`;
 }
 
@@ -889,9 +921,11 @@ function renderSummary() {
     <div class="stats">
       <div class="stat"><small>Episodes</small><div>${wEps} / ${tEps}</div></div>
       <div class="stat"><small>Shows done</small><div>${doneShows} / ${list.length}</div></div>
-      <div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
+      ${rw() ? `<div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
       <div class="stat"><small>Your pace</small><div>${pace}</div></div>
-      <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>
+      <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>`
+      : `<div class="stat"><small>Watched this week</small><div>${fmtH(watchedSince(startOfDay(Date.now()) - 6 * DAY).min)}</div></div>
+      <div class="stat"><small>Caught up on</small><div>${list.filter(x => showStats(x).caught).length}</div></div>`}
     </div>`;
 }
 
@@ -909,7 +943,7 @@ function showHTML(s) {
   const pct = (st.totalMin ? st.wMin / st.totalMin * 100 : 0);
   const pill = st.status === 'done' ? `<span class="pill done">Finished</span>`
     : st.caught ? `<span class="pill watching">Caught up</span>`
-    : st.status === 'watching' ? `<span class="pill watching">Day ${daysSpan(st.start, Date.now())}</span>`
+    : st.status === 'watching' ? `<span class="pill watching">${rw() ? 'Day ' + daysSpan(st.start, Date.now()) : 'Watching'}</span>`
     : `<span class="pill">Not started</span>`;
   const logged = state.history.filter(h => h.id === s.id).length;
   let timing;
@@ -919,6 +953,8 @@ function showHTML(s) {
     : `Rewatched ${fmtD(st.start)} → ${fmtD(st.last)} — took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
   else if (st.caught) timing = `You're caught up — you've seen all ${st.totalEps} aired episodes. ` +
     (st.nextAir ? `Next: <b>S${st.nextAir.si} E${st.nextAir.e}</b> · ${st.nextAir.a ? airLabel(st.nextAir.a).replace('Airs', 'airs') : 'air date not announced yet'}.` : 'No new episodes announced yet.');
+  else if (st.status === 'done' && !rw()) timing = `Finished <b>${fmtD(st.last)}</b> · ${st.totalEps} episodes · ${fmtH(st.totalMin)}.`;
+  else if (st.status === 'watching' && !rw()) timing = `Watched <b>${st.wEps}</b> of ${st.totalEps} episodes · <b>${fmtH(st.totalMin - st.wMin)}</b> left.`;
   else if (st.status === 'done') timing = `Finished <b>${fmtD(st.last)}</b> — ${rw() ? 'this rewatch' : 'it'} took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
   else {
     const d = daysSpan(st.start, Date.now()), perDay = st.wMin / d;
@@ -926,11 +962,11 @@ function showHTML(s) {
       (perDay > 0 ? ` — at ${fmtH(perDay)}/day you'll finish around <b>${fmtD(Date.now() + (st.totalMin - st.wMin) / perDay * DAY)}</b>.` : '.');
   }
   const today = isoDate(Date.now());
-  const startRow = st.status === 'new'
+  const startRow = !rw() ? '' : st.status === 'new'
     ? `<button class="startbtn" data-startnow="${s.id}">▶ ${rw() ? 'Start rewatch' : 'Start watching'} today</button>`
     : `<label class="startrow">${rw() ? 'Rewatch started' : 'Started watching'} <input type="date" data-start="${s.id}" value="${st.start ? isoDate(st.start) : ''}" max="${today}"></label>` +
       (st.virtual ? `<label class="startrow">${rw() ? 'Rewatch finished' : 'Finished watching'} <input type="date" data-end="${s.id}" value="${st.last ? isoDate(st.last) : ''}" max="${today}"></label>` : '');
-  const doneRow = st.status === 'done'
+  const doneRow = st.status === 'done' && rw()
     ? `<button class="logbtn" data-log="${s.id}">${st.virtual ? 'Watch it again — log this rewatch to History' : rw() ? 'Log this rewatch to History &amp; start fresh' : 'Log to History &amp; watch it again'}</button>` : '';
   const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + 'h ago' : fmtD(t); };
   const syncRow = s.tm ? `<div class="syncrow"><button class="sbtn" data-sync="${s.id}"${syncing.has(s.id) ? ' disabled' : ''}>${syncing.has(s.id) ? 'Syncing…' : '⟳ Sync episodes'}</button>
@@ -976,6 +1012,7 @@ function showHTML(s) {
       ${doneRow}${prevRow}
       ${seasons}
       ${st.wEps && !st.virtual ? `<button class="reset" data-reset="${s.id}">Reset progress for ${esc(s.name)}</button>` : ''}
+      ${listOf(s) === 'watch' ? `<button class="reset movebtn" data-group="${s.id}">Move to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}</button>` : ''}
       <button class="reset movebtn" data-move="${s.id}">Move to ${listOf(s) === 'watch' ? 'Rewatching' : 'Watching'}</button>
       ${tmIdOf(s) ? `<div style="margin-top:8px"><a class="tmlink" href="https://www.tvmaze.com/shows/${tmIdOf(s)}" target="_blank" rel="noopener">View ${esc(s.name)} on TVmaze ↗</a></div>` : ''}
       ${s.custom ? `<button class="reset" data-rmshow="${s.id}">Remove ${esc(s.name)} from the tracker</button>` : ''}
@@ -1091,11 +1128,18 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); setCur(t.dataset.startnow); changed(); return; }
   if (t.dataset.mode) { setMode(t.dataset.mode); return; }
+  if (t.dataset.sub) { setSub(t.dataset.sub); return; }
+  if (t.dataset.group) {
+    const s = showById(t.dataset.group); if (!s) return;
+    state.groups[s.id] = groupOf(s) === 'wife' ? 'me' : 'wife';
+    open.delete(s.id); changed(); return;
+  }
   if (t.dataset.move) {
     const s = showById(t.dataset.move); if (!s) return;
     const to = listOf(s) === 'watch' ? 'rewatch' : 'watch', from = listOf(s);
     if (state.cur[from] === s.id) state.cur[from] = null;
     state.lists[s.id] = to;
+    if (to === 'watch' && !state.groups[s.id]) state.groups[s.id] = sub;
     open.delete(s.id);
     changed();
     return;
@@ -1191,6 +1235,7 @@ async function addFromTvmaze(tm) {
   if (!entry.s.length) throw new Error('no episodes');
   state.custom.push(entry);
   if (!state.lists[entry.id]) state.lists[entry.id] = mode;
+  if (mode === 'watch' && !state.groups[entry.id]) state.groups[entry.id] = sub;
   SHOWS = buildShows(state.custom);
   watchArt(showById(entry.id));
   return entry.id;
@@ -1340,6 +1385,7 @@ document.getElementById('addform-form').addEventListener('submit', ev => {
   const id = 'c' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '').padEnd(6, '0');
   state.custom.push({ id, name, net, eps, rt });
   state.lists[id] = mode;
+  if (mode === 'watch') state.groups[id] = sub;
   setTimeout(findPosters, 500);
   SHOWS = buildShows(state.custom);
   watchArt(showById(id));
@@ -1363,6 +1409,7 @@ document.addEventListener('change', ev => {
 const VIEWS = ['home', 'shows', 'upcoming', 'stats', 'history'];
 function showView(v) {
   if (!VIEWS.includes(v)) v = 'home';
+  if (v === 'home' && mode === 'watch') v = 'shows';
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
@@ -1386,7 +1433,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, seeds: state.seeds, posters: state.posters } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -1451,7 +1498,7 @@ async function flush() {
   if (!ref || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, seeds: state.seeds, posters: state.posters, updated: Date.now() });
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, updated: Date.now() });
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
@@ -1462,7 +1509,7 @@ async function flush() {
   }
 }
 
-document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+syncModeUI();
 render();
 
 // ---------- Account sync (Firebase project "ciaran-apps", data at users/<uid>/tvshows/...) ----------
@@ -1492,7 +1539,7 @@ else Cloud.onUser(u => {
       if (!snap.metadata.fromCache) setSync('Synced to your account · ' + (u.email || ''));
     } else if (!snap.metadata.fromCache && firstSnap) {
       // Nothing in your account yet: upload what's on this device.
-      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.cur.watch || !!state.cur.rewatch || Object.keys(state.lists).length;
+      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.cur.watch || !!state.cur.rewatch || Object.keys(state.lists).length || Object.keys(state.groups).length;
       if (hasLocal) { dirty = true; flush(); }
       else setSync('Synced to your account · ' + (u.email || ''));
     }
