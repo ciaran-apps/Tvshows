@@ -142,6 +142,24 @@
   .litem{padding:7px 12px;font-size:13px;color:var(--muted);border-bottom:1px solid #ffffff08}
   .litem:last-child{border-bottom:0}
   .lshow{color:var(--text);font-weight:500}
+  .lgo{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #ffffff08;font:inherit;font-size:13px}
+  .hv{margin:2px 0 14px}
+  .cal{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 10px 12px;margin-bottom:10px}
+  .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .cal-top div{text-align:center;line-height:1.2}
+  .cal-top b{display:block;font-size:15px}
+  .cal-top small{color:var(--muted);font-size:12px}
+  .cal-top button{background:none;border:1px solid var(--line);color:var(--text);border-radius:99px;width:34px;height:34px;font-size:20px;line-height:1}
+  .cal-top button:disabled{opacity:.25}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cdow{text-align:center;font-size:11px;color:var(--muted);padding-bottom:2px}
+  .cday{position:relative;aspect-ratio:1;background:var(--card2);border:1px solid transparent;border-radius:9px;color:var(--text);font:inherit;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0}
+  .cday.off{background:none;color:#ffffff30}
+  .cday.today{border-color:var(--line);font-weight:700}
+  .cday.has{background:#a998f526}
+  .cday.has i{font-style:normal;font-size:10px;font-weight:700;color:var(--accent);line-height:1}
+  .cday.sel{border-color:var(--accent);background:var(--accent);color:#16141c}
+  .cday.sel i{color:#16141c}
   .empty.small{padding:14px;font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:12px}
   .startbtn,.logbtn{width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-weight:600;font-size:14px;margin-bottom:12px}
   .logbtn{border-color:var(--done);color:var(--done)}
@@ -905,6 +923,64 @@ async function syncAll() {
 }
 
 // ---------- History view ----------
+// ---------- Watching → History → Calendar ----------
+// Month view (Mon–Sun). Tap a day to see the episodes ticked that day. Only counts from 7 Nov 2026,
+// when the calendar was added, so imported and older ticks don't clutter it.
+const CAL_FROM = new Date(2026, 10, 7).getTime();
+const HV_KEY = 'tvshows.histview';
+let histView = 'cal';
+try { if (localStorage.getItem(HV_KEY) === 'list') histView = 'list'; } catch (e) {}
+let calMonth = null, calSel = null;
+const dayStart = ts => { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+function calendarHTML() {
+  const today = dayStart(Date.now()), first = new Date(CAL_FROM);
+  if (!calMonth) { const t = new Date(today); calMonth = new Date(t.getFullYear(), t.getMonth(), 1); }
+  if (!calSel) calSel = isoDate(today);
+  // Episodes per day for the shows in this tab
+  const byDay = new Map();
+  for (const s of modeShows()) {
+    const w = state.shows[s.id] || {};
+    for (const k in w) {
+      const ts = w[k]; if (!knownTs(ts) || ts < CAL_FROM) continue;
+      const [si, e] = k.split('-').map(Number);
+      if (!s.seasons[si - 1] || e > s.seasons[si - 1].titles.length) continue;
+      const key = isoDate(ts);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push({ s, si, e, ts });
+    }
+  }
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  const canPrev = new Date(y, m, 1) > new Date(first.getFullYear(), first.getMonth(), 1);
+  const canNext = new Date(y, m + 1, 1) <= new Date(today);
+  const lead = (new Date(y, m, 1).getDay() + 6) % 7, nDays = new Date(y, m + 1, 0).getDate();
+  let cells = '<span class="cblank"></span>'.repeat(lead), monthEps = 0;
+  for (let d = 1; d <= nDays; d++) {
+    const ts = new Date(y, m, d).getTime(), key = isoDate(ts), n = (byDay.get(key) || []).length;
+    const off = ts < dayStart(CAL_FROM) || ts > today;
+    monthEps += n;
+    cells += `<button class="cday${off ? ' off' : ''}${key === calSel ? ' sel' : ''}${ts === today ? ' today' : ''}${n ? ' has' : ''}" ${off ? 'disabled' : `data-calday="${key}"`} aria-label="${fmtDay(ts)}${n ? ', ' + plural(n, 'episode') : ''}">
+      <span>${d}</span>${n ? `<i>${n}</i>` : ''}</button>`;
+  }
+  const items = (byDay.get(calSel) || []).sort((a, b) => a.ts - b.ts);
+  const selTs = new Date(calSel + 'T12:00:00').getTime();
+  const mins = items.reduce((t, ev) => t + (rtOfEp(ev.s, ev.si, ev.e) || 0), 0);
+  const dayHTML = `<div class="lday"><div class="lhead"><span>${calSel === isoDate(today) ? 'Today' : fmtDay(selTs)}</span><span>${items.length ? plural(items.length, 'episode') + ' · ' + fmtH(mins) : ''}</span></div>
+    ${items.length ? items.map(ev => `<button class="litem lgo" data-goshow="${ev.s.id}"><span class="lshow">${esc(ev.s.name)}</span> S${ev.si} E${ev.e} · ${esc(ev.s.seasons[ev.si - 1].titles[ev.e - 1])}</button>`).join('')
+      : `<div class="litem">No episodes watched this day.</div>`}</div>`;
+  return `<div class="cal">
+    <div class="cal-top"><button data-calmove="-1" ${canPrev ? '' : 'disabled'} aria-label="Previous month">‹</button>
+      <div><b>${calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><small>${plural(monthEps, 'episode')}</small></div>
+      <button data-calmove="1" ${canNext ? '' : 'disabled'} aria-label="Next month">›</button></div>
+    <div class="cal-grid">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span class="cdow">${x}</span>`).join('')}${cells}</div>
+  </div>${dayHTML}`;
+}
+document.getElementById('history').addEventListener('click', ev => {
+  const t = ev.target.closest('[data-hview],[data-calday],[data-calmove]'); if (!t) return;
+  if (t.dataset.hview) { histView = t.dataset.hview; try { localStorage.setItem(HV_KEY, histView); } catch (e) {} }
+  else if (t.dataset.calday) calSel = t.dataset.calday;
+  else { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +t.dataset.calmove, 1); }
+  renderHistory();
+});
 function renderHistory() {
   const now = Date.now();
   // Completed: logged rewatches + shows currently finished but not yet logged
@@ -956,7 +1032,9 @@ function renderHistory() {
     ${g.items.map(ev => `<div class="litem"><span class="lshow">${esc(ev.s.name)}</span> S${ev.si} E${ev.e} · ${esc(ev.s.seasons[ev.si - 1].titles[ev.e - 1])}</div>`).join('')}</div>`).join('')
     : `<div class="empty small">Episodes you tick off will appear here, grouped by day.</div>`;
 
-  document.getElementById('history').innerHTML = `
+  const toggle = rw() ? '' : `<div class="subs hv"><button data-hview="cal" class="${histView === 'cal' ? 'on' : ''}">Calendar</button><button data-hview="list" class="${histView === 'list' ? 'on' : ''}">List</button></div>`;
+  if (!rw() && histView === 'cal') { document.getElementById('history').innerHTML = toggle + calendarHTML(); return; }
+  document.getElementById('history').innerHTML = toggle + `
     <h2>${rw() ? 'Finished rewatches' : 'Finished'}</h2>${doneHTML}
     <h2>${rw() ? 'In progress' : 'Watching now'}</h2>${progHTML}
     <h2>Watch log</h2>${logHTML}`;
