@@ -144,7 +144,14 @@
   .tabs button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 14px;font-size:13px;white-space:nowrap;color:var(--muted)}
   .tabs button.on{background:var(--accent);border-color:var(--accent);color:#16141c;font-weight:600}
 
-  .show{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+  .show{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;position:relative}
+  .qmove{position:absolute;top:10px;right:12px;z-index:1;background:none;border:1px solid var(--line);border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600;color:var(--accent);line-height:1.5}
+  .qmove:active{background:#a998f526}
+  .show.hasq .row1{align-items:flex-end}
+  .show.hasq .row1 .pill{margin-top:22px}
+  .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2640;border:1px solid var(--line);border-radius:12px;padding:10px 12px 10px 14px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:20;box-shadow:0 6px 24px #0008;max-width:calc(100% - 28px)}
+  .toast[hidden]{display:none}
+  .toast button{background:none;border:0;color:var(--accent);font-weight:700;font-size:13px;padding:2px 4px}
   .head{display:block;width:100%;text-align:left;background:none;border:0;padding:14px 14px 12px}
   .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
   .name{font-size:17px;font-weight:600}
@@ -301,6 +308,7 @@
   <section id="history"></section>
 </div>
 
+<div class="toast" id="toast" hidden role="status"><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
 <div class="modal" id="picker"><div>
   <div class="pk-head"><h3>What are you watching?</h3><button type="button" class="pk-x" id="pk-close" aria-label="Close">✕</button></div>
   <div id="pk-list"></div>
@@ -1042,7 +1050,9 @@ function showHTML(s) {
       <div class="sbar${all ? ' done' : ''}"><i style="width:${spct}%"></i></div>
       <div class="eps">${rows}</div></div>`;
   }).join('') + (anyEst ? `<div class="note">~ marks seasons where exact per-episode runtimes weren't available, so a typical episode length is used.</div>` : '') : '';
-  return `<article class="show${open.has(s.id) ? ' open' : ''}" id="show-${s.id}">
+  const quick = listOf(s) === 'watch'
+    ? `<button class="qmove" data-group="${s.id}" aria-label="Move ${esc(s.name)} to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}">${groupOf(s) === 'wife' ? '→ Just me' : '→ With wife'}</button>` : '';
+  return `<article class="show${open.has(s.id) ? ' open' : ''}${quick ? ' hasq' : ''}" id="show-${s.id}">${quick}
     <button class="head" data-toggle="${s.id}"><div class="hwrap">${artHTML(s)}<div class="info">
       <div class="row1"><div><div class="name">${esc(s.name)}</div>
         <div class="meta">${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pill}</div>
@@ -1169,8 +1179,11 @@ document.addEventListener('click', ev => {
   if (t.dataset.sub) { setSub(t.dataset.sub); return; }
   if (t.dataset.group) {
     const s = showById(t.dataset.group); if (!s) return;
-    state.groups[s.id] = groupOf(s) === 'wife' ? 'me' : 'wife';
-    open.delete(s.id); changed(); return;
+    const from = groupOf(s);
+    state.groups[s.id] = from === 'wife' ? 'me' : 'wife';
+    open.delete(s.id); changed();
+    toast(`Moved ${s.name} to ${GROUPS[state.groups[s.id]]}`, () => { state.groups[s.id] = from; changed(); });
+    return;
   }
   if (t.dataset.move) {
     const s = showById(t.dataset.move); if (!s) return;
@@ -1498,6 +1511,19 @@ function showView(v) {
 showView(location.hash.slice(1));
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 
+let toastTimer = null, toastUndo = null;
+function toast(text, undo) {
+  const el = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = text;
+  toastUndo = undo || null;
+  document.getElementById('toast-undo').hidden = !undo;
+  el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; toastUndo = null; }, 4500);
+}
+document.getElementById('toast-undo').onclick = () => {
+  const f = toastUndo; toastUndo = null; document.getElementById('toast').hidden = true;
+  if (f) f();
+};
 let pendingConfirm = null;
 function confirmBox(text, okLabel, fn) {
   pendingConfirm = fn;
