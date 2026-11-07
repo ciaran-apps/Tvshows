@@ -1154,17 +1154,33 @@ function renderSearch() {
   const html = hits.slice(0, 60).map(x => { mode = listOf(x.s); try { return showHTML(x.s, inMode(x.s) && mode === keep ? '' : whereOf(x.s)); } finally { mode = keep; } }).join('');
   document.getElementById('list').innerHTML = html || `<div class="empty">No shows match “${esc(query.trim())}”.<br>To add a new one, use ＋ Add a show.</div><button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
+// When a show's most recent episode aired (0 if no dates are known).
+function lastAired(s) {
+  let t = 0; const now = Date.now();
+  for (const sea of s.seasons) for (const a of (sea.airs || [])) if (a && a <= now && a > t) t = a;
+  return t;
+}
 function renderList() {
   const searching = !!qNorm(query);
   document.getElementById('tabs').hidden = searching;
   document.getElementById('q-clear').hidden = !query;
   if (searching) return renderSearch();
-  document.getElementById('list-hint').textContent = 'Sorted by least time left';
-  // Shortest time left first; finished shows go to the bottom.
-  const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
-  const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter)
-    .sort((a, b) => (left(a) - left(b)) || a.name.localeCompare(b.name));
-  document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
+  const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter);
+  const az = (a, b) => a.name.localeCompare(b.name);
+  let hint;
+  if (rw()) {
+    // Rewatching: shortest time left first; finished shows go to the bottom.
+    const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
+    items.sort((a, b) => (left(a) - left(b)) || az(a, b));
+    hint = 'Sorted by least time left';
+  } else {
+    // Watching: newest episode first; finished shows A–Z (at the bottom of All).
+    const D = new Map(items.map(s => [s.id, showStats(s).status === 'done' ? 1 : 0])), L = new Map(items.map(s => [s.id, lastAired(s)]));
+    items.sort((a, b) => (D.get(a.id) - D.get(b.id)) || (D.get(a.id) ? az(a, b) : (L.get(b.id) - L.get(a.id)) || az(a, b)));
+    hint = filter === 'done' ? 'Sorted A–Z' : filter === 'all' ? 'Newest episode first · finished shows A–Z' : 'Newest episode first';
+  }
+  document.getElementById('list-hint').textContent = hint;
+  document.getElementById('list').innerHTML = (items.length ? items.map(s => showHTML(s)).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
 // Only the tab on screen is redrawn; the others are drawn when you switch to them (quicker with hundreds of shows).
