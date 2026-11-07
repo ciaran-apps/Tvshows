@@ -45,7 +45,7 @@
   .modes button{flex:1;background:none;border:0;border-bottom:2px solid transparent;padding:8px 4px 10px;font-size:15px;font-weight:600;color:var(--muted);margin-bottom:-1px}
   .modes button.on{color:var(--accent);border-bottom-color:var(--accent)}
   .subs{display:flex;gap:6px;margin:-2px 0 12px}
-  .subs[hidden]{display:none}
+  .subs[hidden],.tabs[hidden]{display:none}
   .subs button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px;font-size:13.5px;font-weight:600;color:var(--muted)}
   .subs button.on{background:#a998f526;border-color:var(--accent);color:var(--accent)}
   .movebtn{color:var(--accent)!important;opacity:1!important}
@@ -141,6 +141,13 @@
   .logbtn{border-color:var(--done);color:var(--done)}
   .startrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);margin-bottom:8px}
   .startrow input{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;color-scheme:dark}
+  .search{position:relative;margin:14px 0 0}
+  .search input{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:99px;padding:9px 38px 9px 14px;font:inherit;font-size:16px;-webkit-appearance:none;appearance:none}
+  .search input::-webkit-search-cancel-button{display:none}
+  .search input:focus{outline:none;border-color:var(--accent)}
+  #q-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);font-size:15px;padding:6px 9px}
+  .where{color:var(--accent)}
+  .tabs[hidden] + #list-hint{margin-top:8px!important}
   .tabs button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 14px;font-size:13px;white-space:nowrap;color:var(--muted)}
   .tabs button.on{background:var(--accent);border-color:var(--accent);color:#16141c;font-weight:600}
 
@@ -264,8 +271,9 @@
   <section id="home"></section>
 </div>
 <div id="view-shows" hidden>
+  <div class="search"><input id="q" type="search" placeholder="Search your shows" autocomplete="off" enterkeyhint="search" aria-label="Search your shows"><button id="q-clear" aria-label="Clear search" hidden>✕</button></div>
   <nav class="tabs" id="tabs"></nav>
-  <div style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
+  <div id="list-hint" style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
   <main id="list"></main>
 </div>
 <div id="view-upcoming" hidden>
@@ -993,7 +1001,7 @@ function renderTabs() {
     `<button data-tab="${k}" class="${filter === k ? 'on' : ''}">${l} (${counts[k]})</button>`).join('');
 }
 
-function showHTML(s) {
+function showHTML(s, where) {
   const st = showStats(s), w = state.shows[s.id] || {};
   const pct = (st.totalMin ? st.wMin / st.totalMin * 100 : 0);
   const pill = st.status === 'done' ? `<span class="pill done">Finished</span>`
@@ -1057,7 +1065,7 @@ function showHTML(s) {
   return `<article class="show${open.has(s.id) ? ' open' : ''}${quick ? ' hasq' : ''}" id="show-${s.id}">${quick}
     <button class="head" data-toggle="${s.id}"><div class="hwrap">${artHTML(s)}<div class="info">
       <div class="row1"><div><div class="name">${esc(s.name)}</div>
-        <div class="meta">${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pill}</div>
+        <div class="meta">${where ? `<span class="where">${where}</span> · ` : ''}${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pill}</div>
       <div class="bar${st.status === 'done' ? ' done' : ''}"><i style="width:${pct}%"></i></div>
       <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : st.caught ? (st.nextAir && st.nextAir.a ? 'Next ' + airLabel(st.nextAir.a).slice(5) : 'Caught up') : fmtH(st.totalMin - st.wMin) + ' left'}</span></div>
     </div></div></button>
@@ -1127,7 +1135,25 @@ document.addEventListener('change', async ev => {
   catch (e) { setSync('That image couldn’t be read — try another'); }
 });
 
+// Search looks through every show (Just me, With my wife and Rewatching); each result says where it lives.
+let query = '';
+const qNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+const whereOf = s => listOf(s) === 'rewatch' ? 'Rewatching' : GROUPS[groupOf(s)];
+function renderSearch() {
+  const q = qNorm(query), words = q.split(' ');
+  const hits = SHOWS.map(s => ({ s, n: qNorm(s.name) })).filter(x => words.every(w => x.n.includes(w)))
+    .sort((a, b) => (b.n.startsWith(q) - a.n.startsWith(q)) || (inMode(b.s) - inMode(a.s)) || a.s.name.localeCompare(b.s.name));
+  document.getElementById('list-hint').textContent = hits.length ? `${plural(hits.length, 'show')} found` : '';
+  const keep = mode;
+  const html = hits.slice(0, 60).map(x => { mode = listOf(x.s); try { return showHTML(x.s, inMode(x.s) && mode === keep ? '' : whereOf(x.s)); } finally { mode = keep; } }).join('');
+  document.getElementById('list').innerHTML = html || `<div class="empty">No shows match “${esc(query.trim())}”.<br>To add a new one, use ＋ Add a show.</div><button class="addbtn" data-addshow="1">＋ Add a show</button>`;
+}
 function renderList() {
+  const searching = !!qNorm(query);
+  document.getElementById('tabs').hidden = searching;
+  document.getElementById('q-clear').hidden = !query;
+  if (searching) return renderSearch();
+  document.getElementById('list-hint').textContent = 'Sorted by least time left';
   // Shortest time left first; finished shows go to the bottom.
   const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
   const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter)
@@ -1144,6 +1170,9 @@ function render() { statsVer++; (RENDER[curView] || RENDER.shows)(); }
 // The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
 const ensureStarted = (id, ts) => { if (!state.started[id]) state.started[id] = ts || Date.now(); };
 
+document.getElementById('q').addEventListener('input', ev => { query = ev.target.value; renderList(); });
+document.getElementById('q').addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.target.blur(); });
+document.getElementById('q-clear').onclick = () => { const i = document.getElementById('q'); i.value = ''; query = ''; renderList(); i.focus(); };
 document.addEventListener('click', ev => {
   const t = ev.target.closest('button'); if (!t) return;
   if (t.dataset.view) { showView(t.dataset.view); return; }
