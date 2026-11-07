@@ -263,8 +263,8 @@
   <button data-mode="rewatch">Rewatching</button>
 </div>
 <div class="subs" id="subs" hidden>
-  <button data-sub="me">Just me</button>
-  <button data-sub="wife">With my wife</button>
+  <button data-sub="me">My Shows</button>
+  <button data-sub="wife">With Hazey</button>
 </div>
 <nav class="views" id="views">
   <button data-view="home" class="on">Home</button>
@@ -686,7 +686,7 @@ function defaultList(s, lists) { const l = (lists || state.lists)[s.id]; return 
 const listOf = s => defaultList(s);
 // Within Watching: shows you watch on your own, or with your wife
 const SUB_KEY = 'tvshows.sub';
-const GROUPS = { me: 'Just me', wife: 'With my wife' };
+const GROUPS = { me: 'My Shows', wife: 'With Hazey' };
 let sub = 'me';
 try { const g = localStorage.getItem(SUB_KEY); if (g === 'me' || g === 'wife') sub = g; } catch (e) {}
 const groupOf = s => state.groups[s.id] === 'wife' ? 'wife' : 'me';
@@ -1067,7 +1067,7 @@ function showHTML(s, where) {
       <div class="eps">${rows}</div></div>`;
   }).join('') + (anyEst ? `<div class="note">~ marks seasons where exact per-episode runtimes weren't available, so a typical episode length is used.</div>` : '') : '';
   const quick = listOf(s) === 'watch'
-    ? `<button class="qmove" data-group="${s.id}" aria-label="Move ${esc(s.name)} to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}">${groupOf(s) === 'wife' ? '→ Just me' : '→ With wife'}</button>` : '';
+    ? `<button class="qmove" data-group="${s.id}" aria-label="Move ${esc(s.name)} to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}">${groupOf(s) === 'wife' ? '→ My Shows' : '→ With Hazey'}</button>` : '';
   return `<article class="show${open.has(s.id) ? ' open' : ''}${quick ? ' hasq' : ''}" id="show-${s.id}">${quick}
     <button class="head" data-toggle="${s.id}"><div class="hwrap">${artHTML(s)}<div class="info">
       <div class="row1"><div><div class="name">${esc(s.name)}</div>
