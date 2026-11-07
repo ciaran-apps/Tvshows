@@ -462,7 +462,18 @@ function customToShow(c) {
   return { id: c.id, name: c.name, net: c.net || 'Added by you', custom: true,
     seasons: c.eps.map(n => ({ titles: Array.from({ length: n }, (_, i) => 'Episode ' + (i + 1)), rts: Array(n).fill(c.rt), est: true })) };
 }
-const buildShows = custom => BUILTIN.concat((custom || []).map(customToShow));
+// TMEP: TVmaze runtimes and air dates for the built-in shows, lined up with their own episode lists
+// { showId: { s: [{ e: [{ r: minutes or null, a: air time or null }] }] } }. Episode lists and your ticks never change.
+let TMEP = {};
+function withTm(s) {
+  const t = TMEP[s.id];
+  if (!t) return s;
+  return { ...s, seasons: s.seasons.map((sea, i) => {
+    const e = t.s[i].e;
+    return { ...sea, rts: sea.rts.map((r, j) => e[j].r || r), est: sea.est && e.some(x => !x.r), dates: e.map(x => x.a) };
+  }) };
+}
+const buildShows = custom => BUILTIN.map(withTm).concat((custom || []).map(customToShow));
 let SHOWS = buildShows([]);
 const epCount = (s, si) => s.seasons[si - 1].titles.length;
 const rtOfEp = (s, si, e) => s.seasons[si - 1].rts[e - 1];
@@ -487,7 +498,7 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 // lists: which side a show is on, 'watch' or 'rewatch' (default: the original shows are rewatches, shows you add are watches)
 // cur: the Home show for each side
 // groups: within Watching, 'me' (just me) or 'wife' (with my wife)
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {} };
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {}, tmEp: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'all';
@@ -534,6 +545,16 @@ function sanitize(d) {
   // Before the Watching / Rewatching toggle there was a single current show
   if (d && typeof d.current === 'string' && !d.cur) { const s = SHOWS.find(x => x.id === d.current); if (s) out.cur[defaultList(s, out.lists)] = s.id; }
   out.seeds = d && Array.isArray(d.seeds) ? d.seeds.filter(x => Number.isInteger(x)).slice(0, 50) : [];
+  out.tmEp = {};
+  const te = d && typeof d.tmEp === 'object' && d.tmEp ? d.tmEp : {};
+  for (const b of BUILTIN) {
+    const v = te[b.id];
+    if (!v || !Array.isArray(v.s) || v.s.length !== b.seasons.length) continue;
+    const okSeason = (x, i) => x && Array.isArray(x.e) && x.e.length === b.seasons[i].titles.length;
+    if (!v.s.every(okSeason)) continue;
+    out.tmEp[b.id] = { s: v.s.map(x => ({ e: x.e.map(y => ({ r: y && +y.r >= 1 && +y.r <= 600 ? Math.round(+y.r) : null, a: y && typeof y.a === 'number' && isFinite(y.a) ? y.a : null })) })) };
+  }
+  TMEP = out.tmEp; SHOWS = buildShows(out.custom);
   out.posters = {};
   const ps = d && typeof d.posters === 'object' && d.posters ? d.posters : {};
   for (const s of SHOWS) { const v = ps[s.id]; if (v && typeof v === 'object' && (v.u === '' || okPoster(v.u))) out.posters[s.id] = { u: v.u, tm: Number.isInteger(v.tm) ? v.tm : 0 }; }
@@ -988,7 +1009,7 @@ function showHTML(s) {
       const nx = st.next && st.next.si === si && st.next.e === e;
       rows += `<button class="ep${on ? ' w' : ''}${nx ? ' nx' : ''}" data-ep="${s.id}|${si}|${e}" aria-label="Season ${si} episode ${e}, ${esc(sea.titles[e - 1])}${on ? ', watched' : ''}">
         <span class="box">✓</span><span class="num">E${e}</span>
-        <span class="ttl">${esc(sea.titles[e - 1])}${ts ? `<span class="when">Watched ${fmtD(ts)}</span>` : ''}</span>
+        <span class="ttl">${esc(sea.titles[e - 1])}${(() => { const a = (sea.dates || sea.airs || [])[e - 1], bits = [a ? 'Aired ' + fmtD(a) : '', ts ? 'Watched ' + fmtD(ts) : ''].filter(Boolean); return bits.length ? `<span class="when">${bits.join(' · ')}</span>` : ''; })()}</span>
         <span class="rt">${sea.est ? '~' : ''}${sea.rts[e - 1]}m</span></button>`;
     }
     const all = n > 0 && c === n, total = seasonMin(s, si), spct = n ? c / n * 100 : 0;
@@ -1283,6 +1304,41 @@ async function afterLoad() {
     if (c.kind === 'tm' && c.status !== 'Ended' && Date.now() - (c.synced || 0) > 6 * 3600e3) await syncShow(c.id, true);
   }
   await findPosters();
+  await findEpisodeData();
+}
+// Line TVmaze's episodes up with a built-in show's own list: by title first, then by position when a season
+// has the same number of episodes on both sides. Saved once per show, so this only runs the first time.
+function alignTm(b, eps) {
+  const norm = t => String(t || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '');
+  const bySea = {}, byTitle = new Map();
+  for (const e of eps) {
+    if (Number.isInteger(e.season) && e.season > 0 && Number.isInteger(e.number)) (bySea[e.season] = bySea[e.season] || []).push(e);
+    const k = norm(e.name); if (k && !byTitle.has(k)) byTitle.set(k, e);
+  }
+  Object.values(bySea).forEach(l => l.sort((x, y) => x.number - y.number));
+  const when = m => m.airstamp ? Date.parse(m.airstamp) || null : m.airdate ? Date.parse(m.airdate + 'T12:00:00Z') || null : null;
+  return { s: b.seasons.map((sea, i) => {
+    const tms = bySea[i + 1] || [], same = tms.length === sea.titles.length;
+    return { e: sea.titles.map((t, j) => {
+      const m = byTitle.get(norm(t)) || (same ? tms[j] : null);
+      return m ? { r: m.runtime || null, a: when(m) } : { r: null, a: null };
+    }) };
+  }) };
+}
+async function findEpisodeData() {
+  let n = 0;
+  for (const b of BUILTIN) {
+    const tm = state.posters[b.id] && state.posters[b.id].tm;
+    if (!tm || state.tmEp[b.id]) continue;
+    try {
+      const eps = await tmGet('/shows/' + tm + '/episodes?specials=1');
+      state.tmEp[b.id] = alignTm(b, Array.isArray(eps) ? eps : []);
+      TMEP = state.tmEp; SHOWS = buildShows(state.custom);
+      if (++n % 4 === 0) changed();
+      await new Promise(r => setTimeout(r, 350));
+    } catch (e) { break; }   // offline: try again next time the app opens
+  }
+  if (n) changed();
 }
 // Match each built-in or hand-entered show to TVmaze by name (and premiere year where known).
 async function findPosters() {
@@ -1437,7 +1493,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -1473,12 +1529,12 @@ function restoreBackup(txt) {
   let data;
   try { data = JSON.parse(String(txt || '').trim()); } catch (e) { msg.textContent = 'That doesn’t look like a TV Shows backup. Copy the whole text and try again.'; return; }
   if (!data || data.app !== 'tvshows' || !data.state) { msg.textContent = 'That doesn’t look like a TV Shows backup.'; return; }
-  const prevShows = SHOWS;
+  const prevShows = SHOWS, prevTm = TMEP;
   const next = sanitize(data.state);   // sanitize also rebuilds SHOWS for added shows
-  SHOWS = prevShows;
+  SHOWS = prevShows; TMEP = prevTm;
   const ticks = Object.values(next.shows).reduce((n, m) => n + Object.keys(m).length, 0);
   confirmBox(`Replace your current progress with this backup from ${data.exported ? fmtD(data.exported) : 'an unknown date'}? It has ${plural(ticks, 'ticked episode')}, ${plural(next.history.length, 'History entry').replace('entrys', 'entries')} and ${plural(next.custom.length, 'added show')}.`, 'Restore', () => {
-    state = next; SHOWS = buildShows(state.custom);
+    state = next; TMEP = state.tmEp; SHOWS = buildShows(state.custom);
     if (typeof watchArt === 'function') SHOWS.forEach(watchArt);
     changed();
     msg.textContent = 'Backup restored.';
@@ -1502,7 +1558,7 @@ async function flush() {
   if (!ref || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, updated: Date.now() });
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp, updated: Date.now() });
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
