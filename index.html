@@ -118,6 +118,8 @@
   .bk-file input{display:none}
   .bk-out{margin-top:12px}
   .bk-out textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:12px/1.4 ui-monospace,Menlo,monospace;margin-bottom:8px;resize:vertical}
+  .sg-report{font-size:12.5px;color:var(--muted);line-height:1.55;margin-top:8px}
+  .sg-report b{color:var(--text)}
   .bk-msg{font-size:12.5px;color:var(--accent);min-height:16px}
   .art.sm{width:40px;height:60px;font-size:14px;border-radius:7px}
   #history h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:20px 2px 8px}
@@ -272,6 +274,14 @@
       <button type="button" data-bk="copy">Copy backup</button>
       <button type="button" data-bk="download" id="bk-download">Download file</button>
       <button type="button" data-bk="import">Import backup</button>
+    </div>
+    <div class="sg">
+      <h2 style="margin-top:16px">Import from SeriesGuide</h2>
+      <p>Choose a SeriesGuide shows export (.json). Each show is found on TVmaze and added to Watching under Just me, with the episodes you've watched ticked. Shows already in Rewatching are left alone. It takes a few minutes for a big library — keep the app open. You can run it again safely: shows already imported are skipped.</p>
+      <div class="bk-btns"><label class="bk-file bk-go">Choose SeriesGuide file<input type="file" accept=".json,application/json" id="sg-file"></label>
+        <button type="button" id="sg-stop" hidden>Stop</button></div>
+      <div id="sg-prog" hidden><div class="bar" style="margin:12px 0 6px"><i id="sg-bar" style="width:0%"></i></div><div class="bk-msg" id="sg-msg" role="status"></div></div>
+      <div class="sg-report" id="sg-report"></div>
     </div>
     <div id="bk-out" class="bk-out" hidden>
       <textarea id="bk-text" rows="5" spellcheck="false" aria-label="Backup text"></textarea>
@@ -508,7 +518,7 @@ try { const c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && c.s
 function sanitizeCustom(list) {
   const out = [];
   if (!Array.isArray(list)) return out;
-  for (const c of list.slice(0, 100)) {
+  for (const c of list.slice(0, 3000)) {
     if (!c || typeof c.id !== 'string' || !/^c[a-z0-9]{4,16}$/.test(c.id) || out.some(x => x.id === c.id)) continue;
     const name = typeof c.name === 'string' ? c.name.trim().slice(0, 60) : '';
     if (c.kind === 'tm') {
@@ -521,7 +531,7 @@ function sanitizeCustom(list) {
       const rt = +c.rt >= 1 && +c.rt <= 600 ? Math.round(+c.rt) : 45;
       if (!name || !(tm > 0) || !seasons.length) continue;
       out.push({ id: c.id, kind: 'tm', tm, name, net: typeof c.net === 'string' ? c.net.slice(0, 40) : '', status: typeof c.status === 'string' ? c.status.slice(0, 20) : '',
-        rt, s: seasons, synced: typeof c.synced === 'number' ? c.synced : 0, img: okPoster(c.img) ? c.img : '' });
+        rt, s: seasons, synced: typeof c.synced === 'number' ? c.synced : 0, img: okPoster(c.img) ? c.img : '', sg: Number.isInteger(c.sg) ? c.sg : 0 });
       continue;
     }
     const eps = Array.isArray(c.eps) ? c.eps.slice(0, 50).map(n => Math.floor(+n)).filter(n => n >= 1 && n <= 300) : [];
@@ -592,7 +602,18 @@ function sanitize(d) {
 const watchedMap = id => state.shows[id] || (state.shows[id] = {});
 
 // ---------- Stats ----------
+// Ticks imported from another tracker have no watch date: they're stored as 1 (UNKNOWN) and never shown as dates.
+const UNKNOWN = 1, knownTs = ts => ts > 1e11;
+// Stats are cached per show until the data changes (changed() and render() start a fresh cache).
+let statsVer = 0, cacheVer = -1;
+const statsCache = new Map();
 function showStats(s) {
+  if (cacheVer !== statsVer) { statsCache.clear(); cacheVer = statsVer; }
+  let r = statsCache.get(s);
+  if (!r) { r = computeStats(s); statsCache.set(s, r); }
+  return r;
+}
+function computeStats(s) {
   const w = state.shows[s.id] || {};
   let totalEps = 0, totalMin = 0, wEps = 0, wMin = 0, first = null, last = null, next = null, unaired = 0, nextAir = null;
   s.seasons.forEach((sea, i) => {
@@ -606,7 +627,7 @@ function showStats(s) {
       }
       totalEps++; totalMin += rt;
       const ts = w[si + '-' + e];
-      if (ts) { wEps++; wMin += rt; if (first === null || ts < first) first = ts; if (last === null || ts > last) last = ts; }
+      if (ts) { wEps++; wMin += rt; if (knownTs(ts)) { if (first === null || ts < first) first = ts; if (last === null || ts > last) last = ts; } }
       else if (!next) next = { si, e };
     }
   });
@@ -878,7 +899,7 @@ function renderHistory() {
   const doneHTML = done.length ? done.map(h => {
     const s = showById(h.id), dated = h.start && h.end, d = dated ? daysSpan(h.start, h.end) : 0;
     return `<div class="hrow">${artHTML(s, true)}<div class="hinfo">
-      <div class="hname">${esc(s.name)}${h.logged || h.before ? '' : ' <span class="pill done">Just finished</span>'}</div>
+      <div class="hname">${esc(s.name)}${h.logged || h.before || !rw() ? '' : ' <span class="pill done">Just finished</span>'}</div>
       ${!rw() ? `<div class="hmeta">${h.end ? 'Finished ' + fmtD(h.end) + ' · ' : ''}${plural(h.eps, 'episode')} · ${fmtH(h.min)}</div>`
       : dated ? `<div class="hmeta">${fmtD(h.start)} → ${fmtD(h.end)}</div>
       <div class="hmeta"><b>${plural(d, 'day')}</b> · ${fmtH(h.min)} · ${fmtH(h.min / d)}/day</div>`
@@ -899,7 +920,7 @@ function renderHistory() {
   const evts = [];
   for (const s of modeShows()) {
     const w = state.shows[s.id] || {};
-    for (const k in w) { const [si, e] = k.split('-').map(Number); evts.push({ s, si, e, ts: w[k] }); }
+    for (const k in w) { if (!knownTs(w[k])) continue; const [si, e] = k.split('-').map(Number); evts.push({ s, si, e, ts: w[k] }); }
   }
   evts.sort((a, b) => b.ts - a.ts);
   const days = [];
@@ -1009,7 +1030,7 @@ function showHTML(s) {
       const nx = st.next && st.next.si === si && st.next.e === e;
       rows += `<button class="ep${on ? ' w' : ''}${nx ? ' nx' : ''}" data-ep="${s.id}|${si}|${e}" aria-label="Season ${si} episode ${e}, ${esc(sea.titles[e - 1])}${on ? ', watched' : ''}">
         <span class="box">✓</span><span class="num">E${e}</span>
-        <span class="ttl">${esc(sea.titles[e - 1])}${(() => { const a = (sea.dates || sea.airs || [])[e - 1], bits = [a ? 'Aired ' + fmtD(a) : '', ts ? 'Watched ' + fmtD(ts) : ''].filter(Boolean); return bits.length ? `<span class="when">${bits.join(' · ')}</span>` : ''; })()}</span>
+        <span class="ttl">${esc(sea.titles[e - 1])}${(() => { const a = (sea.dates || sea.airs || [])[e - 1], bits = [a ? 'Aired ' + fmtD(a) : '', knownTs(ts) ? 'Watched ' + fmtD(ts) : ''].filter(Boolean); return bits.length ? `<span class="when">${bits.join(' · ')}</span>` : ''; })()}</span>
         <span class="rt">${sea.est ? '~' : ''}${sea.rts[e - 1]}m</span></button>`;
     }
     const all = n > 0 && c === n, total = seasonMin(s, si), spct = n ? c / n * 100 : 0;
@@ -1076,25 +1097,15 @@ function shrinkImage(file) {
     img.src = url;
   });
 }
-let artRefs = null, artCol = null, artUnsubs = [];
-function watchArt(s) {
-  if (!artRefs || !artCol || artRefs[s.id]) return;
-  const r = artRefs[s.id] = artCol.doc('art-' + s.id);
-  artUnsubs.push(r.onSnapshot(snap => {
-    if (snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
-    const img = snap.exists ? snap.data().img : null;
-    if (typeof img === 'string' && img.startsWith('data:image/')) {
-      if (art[s.id] !== img) { art[s.id] = img; saveArtLocal(); renderList(); renderHistory(); }
-    } else if (art[s.id]) {
-      r.set({ img: art[s.id] }).catch(() => {});   // picture only on this device so far: upload it
-    }
-  }, () => {}));
-}
+let artRefs = null, artCol = null;
+// Pictures now arrive through the account listener below; kept as a no-op for older call sites.
+function watchArt(s) { return; }
 async function setArt(id, dataUrl) {
   if (dataUrl) art[id] = dataUrl; else delete art[id];
   saveArtLocal(); renderList(); renderHistory(); renderHome();
-  if (artRefs && artRefs[id]) {
-    try { dataUrl ? await artRefs[id].set({ img: dataUrl }) : await artRefs[id].delete(); }
+  if (artCol) {
+    const r = artCol.doc('art-' + id);
+    try { dataUrl ? await r.set({ img: dataUrl }) : await r.delete(); }
     catch (e) { setSync('Couldn’t save the picture to your account — kept on this device'); }
   }
 }
@@ -1112,7 +1123,10 @@ function renderList() {
   document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
-function render() { renderHome(); renderSummary(); renderTabs(); renderList(); renderUpcoming(); renderHistory(); }
+// Only the tab on screen is redrawn; the others are drawn when you switch to them (quicker with hundreds of shows).
+let curView = 'home';
+const RENDER = { home: () => renderHome(), shows: () => { renderTabs(); renderList(); }, upcoming: () => renderUpcoming(), stats: () => renderSummary(), history: () => renderHistory() };
+function render() { statsVer++; (RENDER[curView] || RENDER.shows)(); }
 
 // ---------- Interaction ----------
 // The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
@@ -1264,7 +1278,7 @@ async function addFromTvmaze(tm) {
   watchArt(showById(entry.id));
   return entry.id;
 }
-async function syncShow(id, quiet) {
+async function syncShow(id, quiet, batch) {
   const i = state.custom.findIndex(c => c.id === id);
   if (i < 0 || syncing.has(id)) return;
   syncing.add(id); delete syncMsg[id]; if (!quiet) render();
@@ -1274,17 +1288,18 @@ async function syncShow(id, quiet) {
     if (!entry.s.length) throw new Error('no episodes');
     const j = state.custom.findIndex(c => c.id === id);   // the list may have changed while we waited
     if (j < 0) return;
+    entry.sg = state.custom[j].sg || 0;
     state.custom[j] = entry;
     SHOWS = buildShows(state.custom);
     const after = showStats(showById(id));
     const gained = after.totalEps - before.totalEps;
     syncMsg[id] = gained > 0 ? `${plural(gained, 'new episode')} added` : 'Up to date';
-    changed();
+    if (!batch) changed();
   } catch (e) {
     syncMsg[id] = navigator.onLine === false ? 'You’re offline — try again later' : 'Couldn’t reach TVmaze — try again';
     if (!quiet) render();
   } finally {
-    syncing.delete(id); render();
+    syncing.delete(id); if (!batch) render();
   }
 }
 // Once per app load (after your saved data has arrived): add any seeded shows, then refresh airing shows
@@ -1300,9 +1315,14 @@ async function afterLoad() {
       state.seeds.push(tm); changed();
     } catch (e) {}
   }
+  let synced = 0;
   for (const c of state.custom.slice()) {
-    if (c.kind === 'tm' && c.status !== 'Ended' && Date.now() - (c.synced || 0) > 6 * 3600e3) await syncShow(c.id, true);
+    if (c.kind === 'tm' && c.status !== 'Ended' && Date.now() - (c.synced || 0) > 12 * 3600e3) {
+      await syncShow(c.id, true, true); synced++;
+      await new Promise(r => setTimeout(r, 400));
+    }
   }
+  if (synced) changed();
   await findPosters();
   await findEpisodeData();
 }
@@ -1471,6 +1491,7 @@ function showView(v) {
   if (v === 'home' && mode === 'watch') v = 'shows';
   if (v === 'upcoming' && mode === 'rewatch') v = 'home';
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
+  if (curView !== v) { curView = v; if (typeof statsVer !== 'undefined') RENDER[v](); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
 }
@@ -1524,6 +1545,120 @@ document.getElementById('bk-file').addEventListener('change', async ev => {
   catch (e) { document.getElementById('bk-imsg').textContent = 'That file couldn’t be read.'; }
   ev.target.value = '';
 });
+// ---------- Import from SeriesGuide ----------
+// SeriesGuide's shows export: [{ title, tvdb_id, imdb_id, last_watched_ms, seasons: [{ season, episodes: [{ episode, watched, first_aired }] }] }]
+let sgStop = false;
+const sgNorm = t => String(t || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+async function sgFindTvmaze(sg) {
+  const tries = [];
+  if (sg.tvdb_id) tries.push('/lookup/shows?thetvdb=' + sg.tvdb_id);
+  if (sg.imdb_id) tries.push('/lookup/shows?imdb=' + encodeURIComponent(sg.imdb_id));
+  for (const t of tries) { try { const d = await tmGet(t); if (d && d.id) return d.id; } catch (e) { if (!/HTTP 404/.test(e.message)) throw e; } }
+  const d = await tmGet('/singlesearch/shows?q=' + encodeURIComponent(sg.title)).catch(e => { if (/HTTP 404/.test(e.message)) return null; throw e; });
+  return d && d.id ? d.id : null;
+}
+// Work out which of TVmaze's episodes you'd watched in SeriesGuide.
+function sgTicks(sg, d) {
+  const eps = ((d._embedded && d._embedded.episodes) || []).filter(e => Number.isInteger(e.season) && Number.isInteger(e.number) && e.season > 0);
+  const seasons = [...new Set(eps.map(e => e.season))].sort((a, b) => a - b);
+  const keyOf = new Map(), aired = [];
+  for (const [si, sn] of seasons.entries()) {
+    eps.filter(e => e.season === sn).sort((a, b) => a.number - b.number).forEach((e, j) => {
+      const k = (si + 1) + '-' + (j + 1);
+      keyOf.set(sn + '-' + e.number, k);
+      const a = e.airstamp ? Date.parse(e.airstamp) : null;
+      if (a && a <= Date.now()) aired.push(k);
+    });
+  }
+  const sgEps = [];
+  for (const se of sg.seasons || []) if (se && se.season > 0) for (const e of se.episodes || []) sgEps.push({ s: se.season, e: e.episode, w: !!e.watched, a: e.first_aired });
+  const sgAired = sgEps.filter(e => e.a && e.a <= Date.now());
+  let keys;
+  // Watched everything that had aired: tick everything TVmaze says has aired (numbering can differ between sites)
+  if (sgAired.length && sgAired.every(e => e.w)) keys = aired;
+  else keys = sgEps.filter(e => e.w).map(e => keyOf.get(e.s + '-' + e.e)).filter(Boolean);
+  const ticks = {};
+  keys.forEach(k => { ticks[k] = UNKNOWN; });
+  // The latest watched episode gets SeriesGuide's last-watched date, so finished shows still show when you finished them
+  const order = k => k.split('-').map(Number).reduce((a, b) => a * 1000 + b, 0);
+  const last = keys.slice().sort((x, y) => order(y) - order(x))[0];
+  if (last && sg.last_watched_ms > 1e11) ticks[last] = sg.last_watched_ms;
+  return ticks;
+}
+async function importSeriesGuide(list) {
+  const bar = document.getElementById('sg-bar'), msg = document.getElementById('sg-msg'), report = document.getElementById('sg-report');
+  const stopBtn = document.getElementById('sg-stop');
+  document.getElementById('sg-prog').hidden = false; stopBtn.hidden = false; report.innerHTML = '';
+  sgStop = false;
+  let lock = null;
+  try { lock = await navigator.wakeLock.request('screen'); } catch (e) {}   // keep the screen on while importing
+  const res = { added: [], merged: [], already: [], rewatch: [], missing: [], failed: [] };
+  const builtinNames = new Map(BUILTIN.map(b => [sgNorm(b.name), b.name]));
+  for (let i = 0; i < list.length; i++) {
+    if (sgStop) break;
+    const sg = list[i], title = String(sg.title || 'Untitled');
+    bar.style.width = (i / list.length * 100) + '%';
+    msg.textContent = `Importing ${i + 1} of ${list.length} · ${title}`;
+    try {
+      if (builtinNames.has(sgNorm(title))) { res.rewatch.push(title); continue; }
+      if (sg.tvdb_id && state.custom.some(c => c.sg === sg.tvdb_id)) { res.already.push(title); continue; }
+      const tm = await sgFindTvmaze(sg);
+      if (!tm) { res.missing.push(title); continue; }
+      const d = await tmGet('/shows/' + tm + '?embed=episodes');
+      const ticks = sgTicks(sg, d);
+      const existing = state.custom.find(c => c.kind === 'tm' && c.tm === tm);
+      if (existing) {
+        // Already in the app (e.g. added by search): keep it and add any ticks it's missing
+        const m = watchedMap(existing.id);
+        for (const k in ticks) if (!m[k]) m[k] = ticks[k];
+        existing.sg = sg.tvdb_id || existing.sg || 0;
+        res.merged.push(title);
+      } else {
+        const entry = tmEntry(d);
+        if (!entry.s.length) { res.missing.push(title); continue; }
+        entry.sg = sg.tvdb_id || 0;
+        state.custom.push(entry);
+        state.lists[entry.id] = 'watch';
+        state.groups[entry.id] = 'me';
+        if (Object.keys(ticks).length) state.shows[entry.id] = ticks;
+        res.added.push(title);
+      }
+      SHOWS = buildShows(state.custom);
+      if ((res.added.length + res.merged.length) % 15 === 0) changed();   // save as we go, so stopping keeps what's done
+    } catch (e) {
+      res.failed.push(title);
+      if (navigator.onLine === false) { sgStop = true; msg.textContent = 'You went offline — stopped. Run it again to carry on.'; }
+    }
+    await new Promise(r => setTimeout(r, 250));
+  }
+  SHOWS = buildShows(state.custom);
+  changed();
+  try { if (lock) await lock.release(); } catch (e) {}
+  stopBtn.hidden = true;
+  bar.style.width = '100%';
+  msg.textContent = sgStop ? 'Stopped. Run the import again to carry on — shows already imported are skipped.' : 'Import finished.';
+  const line = (label, arr, show) => arr.length ? `<div><b>${arr.length}</b> ${label}${show ? ': ' + esc(arr.slice(0, 40).join(', ')) + (arr.length > 40 ? '…' : '') : ''}</div>` : '';
+  report.innerHTML = line('added to Watching', res.added) + line('already in the app, ticks added', res.merged, true) +
+    line('imported earlier, skipped', res.already) + line('left alone because they’re in Rewatching', res.rewatch, true) +
+    line('not found on TVmaze', res.missing, true) + line('couldn’t be imported (try again later)', res.failed, true);
+}
+document.getElementById('sg-stop').onclick = () => { sgStop = true; document.getElementById('sg-msg').textContent = 'Stopping…'; };
+document.getElementById('sg-file').addEventListener('change', async ev => {
+  const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+  if (!f) return;
+  const report = document.getElementById('sg-report');
+  let list;
+  try { list = JSON.parse(await f.text()); } catch (e) { report.textContent = 'That file couldn’t be read as a SeriesGuide export.'; return; }
+  if (!Array.isArray(list) || !list.length || !list.every(x => x && typeof x.title === 'string' && Array.isArray(x.seasons))) {
+    report.textContent = 'That doesn’t look like a SeriesGuide shows export. In SeriesGuide, use Settings → Export → Shows (JSON).'; return;
+  }
+  const eps = list.reduce((n, x) => n + x.seasons.reduce((m, se) => m + ((se && se.episodes) || []).length, 0), 0);
+  confirmBox(`Import ${plural(list.length, 'show')} (${eps.toLocaleString()} episodes) from SeriesGuide into Watching → Just me? It takes a few minutes; keep the app open.`, 'Import', () => {
+    if (mode !== 'watch') setMode('watch');
+    importSeriesGuide(list);
+  });
+});
+
 function restoreBackup(txt) {
   const msg = document.getElementById('bk-imsg');
   let data;
@@ -1543,22 +1678,72 @@ function restoreBackup(txt) {
 }
 
 // ---------- Persistence ----------
+// Account layout (users/<uid>/tvshows/...), so no single record gets too big:
+//   progress      everything except episode ticks and TVmaze episode lists (v: 2)
+//   s-<showId>    one per show: { t: your ticks, d: its TVmaze entry if it was added from TVmaze }
+//   art-<showId>  your own picture for a show
+// Before v2, everything lived in "progress"; the first save after updating moves it across.
 const syncEl = document.getElementById('sync');
-let ref = null, dirty = false, writing = false, flushTimer = null, readOnly = false;
+let col = null, dirty = false, writing = false, flushTimer = null, readOnly = false;
+const lastSent = new Map();   // record id -> canonical JSON last written or received
+let remoteIds = new Set();
 function setSync(t) { syncEl.textContent = t; }
 function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+// JSON with sorted keys, so the same data always compares equal whatever order the server returns it in
+function canon(x) {
+  if (Array.isArray(x)) return '[' + x.map(canon).join(',') + ']';
+  if (x && typeof x === 'object') return '{' + Object.keys(x).filter(k => x[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(x[k])).join(',') + '}';
+  return JSON.stringify(x === undefined ? null : x);
+}
+function recordsFromState() {
+  const out = new Map(), tmIds = [], manual = [];
+  for (const c of state.custom) (c.kind === 'tm' ? tmIds : manual).push(c.kind === 'tm' ? c.id : c);
+  out.set('progress', { v: 2, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: manual, tmIds,
+    cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp });
+  const ids = new Set(tmIds);
+  for (const id in state.shows) if (Object.keys(state.shows[id]).length) ids.add(id);
+  for (const id of ids) out.set('s-' + id, { t: state.shows[id] || {}, d: state.custom.find(c => c.id === id && c.kind === 'tm') || null });
+  return out;
+}
+function stateFromRecords(docs) {
+  const p = docs.get('progress');
+  if (!p) return null;
+  if (p.v !== 2) return p;   // old single-record layout
+  const tmById = new Map(), shows = {};
+  for (const [id, body] of docs) {
+    if (!id.startsWith('s-') || !body) continue;
+    const sid = id.slice(2);
+    if (body.t && typeof body.t === 'object') shows[sid] = body.t;
+    if (body.d && typeof body.d === 'object') tmById.set(sid, body.d);
+  }
+  const order = Array.isArray(p.tmIds) ? p.tmIds : [];
+  const tm = order.filter(id => tmById.has(id)).map(id => tmById.get(id));
+  for (const [id, d] of tmById) if (!order.includes(id)) tm.push(d);
+  return { ...p, shows, custom: (Array.isArray(p.custom) ? p.custom : []).concat(tm) };
+}
 
 function changed() {
+  statsVer++;
   saveLocal(); render();
-  if (!ref || readOnly) return;
+  if (!col || readOnly) return;
   dirty = true; setSync('Saving…');
   clearTimeout(flushTimer); flushTimer = setTimeout(flush, 700);
 }
 async function flush() {
-  if (!ref || writing || !dirty) return;
+  if (!col || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp, updated: Date.now() });
+    const recs = recordsFromState(), ops = [];
+    for (const [id, body] of recs) { const c = canon(body); if (lastSent.get(id) !== c) ops.push({ id, body, c }); }
+    for (const id of remoteIds) if (id.startsWith('s-') && !recs.has(id)) ops.push({ id, del: true });
+    for (let i = 0; i < ops.length; i += 400) {
+      const b = firebase.firestore().batch();
+      for (const o of ops.slice(i, i + 400)) o.del ? b.delete(col.doc(o.id)) : b.set(col.doc(o.id), Cloud.clean(o.body));
+      await b.commit();
+      for (const o of ops.slice(i, i + 400)) {
+        if (o.del) { lastSent.delete(o.id); remoteIds.delete(o.id); } else { lastSent.set(o.id, o.c); remoteIds.add(o.id); }
+      }
+    }
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
@@ -1578,35 +1763,50 @@ let progressUnsub = null;
 if (!window.Cloud || !Cloud.enabled) { setSync('Saved on this device only'); afterLoad(); }
 else Cloud.onUser(u => {
   if (progressUnsub) { progressUnsub(); progressUnsub = null; }
-  artUnsubs.forEach(f => f()); artUnsubs = []; artRefs = null; artCol = null;
-  ref = null; dirty = false; readOnly = false;
+  col = null; artCol = null; artRefs = null; dirty = false; readOnly = false; lastSent.clear(); remoteIds = new Set();
   if (!u) { setSync('Not signed in — saved on this device only. Sign in at the top to sync.'); afterLoad(); return; }
   setSync('Connecting to your account…');
-  const col = Cloud.userRef().collection('tvshows');
-  ref = col.doc('progress');
-  artCol = col; artRefs = {};
-  SHOWS.forEach(watchArt);
+  const c = Cloud.userRef().collection('tvshows');
   let firstSnap = true;
-  progressUnsub = ref.onSnapshot({ includeMetadataChanges: true }, snap => {
+  progressUnsub = c.onSnapshot({ includeMetadataChanges: true }, snap => {
     if (Cloud.user !== u) return;
     if (snap.metadata.hasPendingWrites || dirty || writing) return;
-    if (snap.exists) {
-      const data = snap.data();
-      const next = sanitize(data);
-      if (JSON.stringify(next) !== JSON.stringify(state)) { state = next; saveLocal(); render(); }
-      else SHOWS = buildShows(state.custom);
-      SHOWS.forEach(watchArt);
+    col = c; artCol = c; artRefs = {};
+    const docs = new Map();
+    snap.docs.forEach(d => docs.set(d.id, d.data()));
+    remoteIds = new Set(docs.keys());
+    // Your pictures
+    let artChanged = false;
+    for (const [id, body] of docs) {
+      if (!id.startsWith('art-')) continue;
+      const sid = id.slice(4), img = body && body.img;
+      if (typeof img === 'string' && img.startsWith('data:image/') && art[sid] !== img) { art[sid] = img; artChanged = true; }
+    }
+    if (artChanged) saveArtLocal();
+    if (!snap.metadata.fromCache && firstSnap) {
+      for (const sid in art) if (!docs.has('art-' + sid)) c.doc('art-' + sid).set({ img: art[sid] }).catch(() => {});   // pictures only on this device so far
+    }
+    const combined = stateFromRecords(docs);
+    if (combined) {
+      for (const [id, body] of docs) if (id === 'progress' || id.startsWith('s-')) lastSent.set(id, canon(body));
+      const next = sanitize(combined);
+      if (canon(next) !== canon(state)) { state = next; TMEP = state.tmEp; saveLocal(); render(); }
+      else { SHOWS = buildShows(state.custom); if (artChanged) render(); }
+      if (combined.v !== 2 && !snap.metadata.fromCache) { dirty = true; flush(); }   // move to the per-show layout
       if (!snap.metadata.fromCache) setSync('Synced to your account · ' + (u.email || ''));
-    } else if (!snap.metadata.fromCache && firstSnap) {
-      // Nothing in your account yet: upload what's on this device.
-      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.cur.watch || !!state.cur.rewatch || Object.keys(state.lists).length || Object.keys(state.groups).length;
-      if (hasLocal) { dirty = true; flush(); }
-      else setSync('Synced to your account · ' + (u.email || ''));
+    } else {
+      if (artChanged) render();
+      if (!snap.metadata.fromCache && firstSnap) {
+        // Nothing in your account yet: upload what's on this device.
+        const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || state.history.length || state.custom.length || Object.keys(state.lists).length;
+        if (hasLocal) { dirty = true; flush(); }
+        else setSync('Synced to your account · ' + (u.email || ''));
+      }
     }
     if (!snap.metadata.fromCache) { firstSnap = false; afterLoad(); }
   }, err => {
     setSync('Couldn’t reach your account, so changes stay on this device for now. Reload to try again.');
-    ref = null; afterLoad();
+    col = null; afterLoad();
   });
 });
 
