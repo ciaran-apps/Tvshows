@@ -1321,6 +1321,28 @@ async function syncShow(id, quiet, batch) {
 // that haven't been synced for 6 hours.
 const SEEDS = [59344];   // Tulsa King
 let startedUp = false;
+// One-off repair (Nov 2026): Tulsa King went missing from Watching. Put it back in Watching → Just me,
+// with the progress from the SeriesGuide export (seasons 1–3 and S4 E1–3), keeping any ticks already there.
+const TK_FIX = -59344;
+async function repairTulsaKing() {
+  if (state.seeds.includes(TK_FIX)) return;
+  try {
+    let c = state.custom.find(x => x.tm === 59344) || state.custom.find(x => sgNorm(x.name) === sgNorm('Tulsa King'));
+    if (!c) { await addFromTvmaze(59344); c = state.custom.find(x => x.tm === 59344); }
+    if (!c) return;
+    state.lists[c.id] = 'watch';
+    if (state.groups[c.id] !== 'wife') state.groups[c.id] = 'me';
+    if (state.cur.rewatch === c.id) state.cur.rewatch = null;
+    const m = watchedMap(c.id), seen = { 1: 9, 2: 10, 3: 10, 4: 3 };
+    (c.s || []).forEach((sea, i) => {
+      const n = Math.min(seen[i + 1] || 0, sea.e.length);
+      for (let e = 1; e <= n; e++) if (!m[(i + 1) + '-' + e]) m[(i + 1) + '-' + e] = UNKNOWN;
+    });
+    if (m['4-3'] === UNKNOWN) m['4-3'] = 1793451874471;   // last watched in SeriesGuide, 31 Oct 2026
+    state.seeds.push(TK_FIX);
+    SHOWS = buildShows(state.custom); statsVer++; changed();
+  } catch (e) {}   // offline: try again next time the app opens
+}
 async function afterLoad() {
   if (startedUp) return; startedUp = true;
   for (const tm of SEEDS) {
@@ -1330,6 +1352,7 @@ async function afterLoad() {
       state.seeds.push(tm); changed();
     } catch (e) {}
   }
+  await repairTulsaKing();
   let synced = 0;
   for (const c of state.custom.slice()) {
     if (c.kind === 'tm' && c.status !== 'Ended' && Date.now() - (c.synced || 0) > 12 * 3600e3) {
