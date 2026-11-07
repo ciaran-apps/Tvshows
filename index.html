@@ -23,10 +23,30 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
-  body{padding:16px 14px 60px;max-width:720px;margin:0 auto}
+  body{padding:16px 14px calc(90px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
   button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
-  h1{font-size:26px;font-weight:600;color:var(--accent);margin:4px 2px 2px}
-  .sync{font-size:12px;color:var(--muted);margin:0 2px 14px;min-height:16px}
+  .top{position:relative;display:flex;align-items:center;gap:6px;margin:2px 0 12px}
+  .top h1{flex:1;font-size:26px;font-weight:600;color:var(--accent);margin:0 2px}
+  .ibtn{width:38px;height:38px;flex:none;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0}
+  .ibtn.on{background:#a998f526;border-color:var(--accent);color:var(--accent)}
+  .ibtn[hidden]{display:none}
+  .ibtn.cloud{border-color:transparent}
+  .cloud .ck,.cloud .up,.cloud .off{display:none}
+  .cloud[data-st="ok"] .ck,.cloud[data-st="busy"] .up,.cloud[data-st="off"] .off{display:inline}
+  .cloud[data-st="ok"]{color:var(--muted)} .cloud[data-st="busy"]{color:var(--accent)} .cloud[data-st="off"]{color:#e5a073}
+  .pop{position:absolute;top:46px;right:0;z-index:15;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:5px;min-width:200px;box-shadow:0 10px 30px #000a}
+  .pop[hidden]{display:none}
+  .pop .fopt{display:flex;justify-content:space-between;gap:14px;width:100%;background:none;border:0;border-radius:9px;padding:10px 12px;font-size:14px;color:var(--text);text-align:left}
+  .pop .fopt span{color:var(--muted)}
+  .pop .fopt.on{background:#a998f526;color:var(--accent);font-weight:600}
+  .pop .fopt.on span{color:var(--accent)}
+  .sync-pop{padding:12px 14px;max-width:280px}
+  .sync{font-size:13px;color:var(--text);line-height:1.45;word-break:break-word}
+  #signout{margin-top:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600}
+  .lists{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px;margin-bottom:12px}
+  .lists button{background:none;border:0;border-radius:99px;padding:8px 2px;font-size:13.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+  .lists button.on{background:var(--accent);color:#16141c}
+  .list-hint{font-size:12px;color:var(--muted);margin:0 2px 10px}
 
   .summary{background:linear-gradient(135deg,#2b2440,#201d28);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -54,18 +74,16 @@
   .sx-mini i{display:block;height:100%;background:var(--accent);border-radius:9px}
   @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
 
-  .modes{display:flex;gap:4px;margin:2px 0 12px;border-bottom:1px solid var(--line)}
-  .modes button{flex:1;background:none;border:0;border-bottom:2px solid transparent;padding:8px 4px 10px;font-size:15px;font-weight:600;color:var(--muted);margin-bottom:-1px}
-  .modes button.on{color:var(--accent);border-bottom-color:var(--accent)}
   .subs{display:flex;gap:6px;margin:-2px 0 12px}
-  .subs[hidden],.tabs[hidden]{display:none}
+  .subs[hidden]{display:none}
   .subs button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px;font-size:13.5px;font-weight:600;color:var(--muted)}
   .subs button.on{background:#a998f526;border-color:var(--accent);color:var(--accent)}
   .movebtn{color:var(--accent)!important;opacity:1!important}
-  .views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:4px}
-  .views button{flex:1;min-width:0;background:none;border:0;border-radius:9px;padding:9px 2px;font-size:13px;font-weight:600;color:var(--muted)}
-  .views button.on{background:var(--accent);color:#16141c}
-  .tabs{display:flex;gap:6px;margin:14px 0 12px;overflow-x:auto;scrollbar-width:none}
+  .views{position:fixed;left:0;right:0;bottom:0;z-index:12;display:flex;justify-content:center;background:#16141cf2;border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .views button{flex:1;max-width:150px;min-width:0;background:none;border:0;padding:4px 2px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+  .views button[hidden]{display:none}
+  .views button svg{width:23px;height:23px}
+  .views button.on{color:var(--accent)}
   #view-stats,#view-history,#view-upcoming{margin-top:14px}
   #upcoming h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:20px 2px 8px;display:flex;justify-content:space-between;gap:8px}
   #upcoming h2 span{text-transform:none;letter-spacing:0;font-weight:500}
@@ -178,22 +196,21 @@
   .logbtn{border-color:var(--done);color:var(--done)}
   .startrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--muted);margin-bottom:8px}
   .startrow input{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;color-scheme:dark}
-  .search{position:relative;margin:14px 0 0}
+  .search{position:relative;margin:0 0 10px}
+  .search[hidden]{display:none}
   .search input{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:99px;padding:9px 38px 9px 14px;font:inherit;font-size:16px;-webkit-appearance:none;appearance:none}
   .search input::-webkit-search-cancel-button{display:none}
   .search input:focus{outline:none;border-color:var(--accent)}
   #q-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);font-size:15px;padding:6px 9px}
   .where{color:var(--accent)}
-  .tabs[hidden] + #list-hint{margin-top:8px!important}
-  .tabs button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 14px;font-size:13px;white-space:nowrap;color:var(--muted)}
-  .tabs button.on{background:var(--accent);border-color:var(--accent);color:#16141c;font-weight:600}
 
   .show{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;position:relative}
-  .qmove{position:absolute;top:10px;right:12px;z-index:1;background:none;border:1px solid var(--line);border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600;color:var(--accent);line-height:1.5}
+  .qmove{position:absolute;top:8px;right:8px;z-index:1;width:32px;height:32px;background:none;border:1px solid var(--line);border-radius:50%;padding:0;color:var(--accent);display:flex;align-items:center;justify-content:center}
   .qmove:active{background:#a998f526}
   .show.hasq .row1{align-items:flex-end}
+  .show.hasq .name{padding-right:30px}
   .show.hasq .row1 .pill{margin-top:22px}
-  .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2640;border:1px solid var(--line);border-radius:12px;padding:10px 12px 10px 14px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:20;box-shadow:0 6px 24px #0008;max-width:calc(100% - 28px)}
+  .toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2640;border:1px solid var(--line);border-radius:12px;padding:10px 12px 10px 14px;display:flex;gap:12px;align-items:center;font-size:13px;z-index:20;box-shadow:0 6px 24px #0008;max-width:calc(100% - 28px)}
   .toast[hidden]{display:none}
   .toast button{background:none;border:0;color:var(--accent);font-weight:700;font-size:13px;padding:2px 4px}
   .head{display:block;width:100%;text-align:left;background:none;border:0;padding:14px 14px 12px}
@@ -286,31 +303,32 @@
 </style>
 </head>
 <body>
-<h1>TV Shows</h1>
-<div class="sync" id="sync"></div>
-
-<div class="modes" role="tablist" aria-label="Watching or rewatching">
-  <button data-mode="watch">Watching</button>
-  <button data-mode="rewatch">Rewatching</button>
-</div>
-<div class="subs" id="subs" hidden>
+<header class="top">
+  <h1>TV Shows</h1>
+  <button class="ibtn" id="btn-search" aria-label="Search your shows" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.6-4.6"/></svg></button>
+  <button class="ibtn" id="btn-filter" aria-label="Filter shows" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  <button class="ibtn cloud" id="btn-sync" data-st="wait" aria-label="Sync status" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.2a4.3 4.3 0 0 0 .5-8.6A6 6 0 0 0 6.2 11a3.8 3.8 0 0 0 .8 7.5z"/><path class="ck" d="M9.5 14l2 2 3.5-3.6"/><path class="up" d="M12 16.5v-5M9.8 13.6L12 11.4l2.2 2.2"/><path class="off" d="M4 4l16 16"/></svg></button>
+  <div class="pop" id="filter-pop" role="menu" hidden></div>
+  <div class="pop sync-pop" id="sync-pop" hidden><div class="sync" id="sync" role="status"></div><button type="button" id="signout" hidden>Sign out</button></div>
+</header>
+<div class="lists" role="tablist" aria-label="Which shows">
   <button data-sub="me">My Shows</button>
   <button data-sub="wife">With Hazey</button>
+  <button data-mode="rewatch">Rewatching</button>
 </div>
 <nav class="views" id="views">
-  <button data-view="home" class="on">Home</button>
-  <button data-view="shows">Shows</button>
-  <button data-view="upcoming">Upcoming</button>
-  <button data-view="stats">Stats</button>
-  <button data-view="history">History</button>
+  <button data-view="home" class="on"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.8V19h12V9.8"/></svg><span>Home</span></button>
+  <button data-view="shows"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="18" height="12.5" rx="2"/><path d="M8.5 3l3.5 3.5L15.5 3"/></svg><span>Shows</span></button>
+  <button data-view="upcoming"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Upcoming</span></button>
+  <button data-view="stats"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg><span>Stats</span></button>
+  <button data-view="history"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l2.5 2"/></svg><span>History</span></button>
 </nav>
 <div id="view-home">
   <section id="home"></section>
 </div>
 <div id="view-shows" hidden>
-  <div class="search"><input id="q" type="search" placeholder="Search your shows" autocomplete="off" enterkeyhint="search" aria-label="Search your shows"><button id="q-clear" aria-label="Clear search" hidden>✕</button></div>
-  <nav class="tabs" id="tabs"></nav>
-  <div id="list-hint" style="font-size:12px;color:var(--muted);margin:-4px 2px 10px">Sorted by least time left</div>
+  <div class="search" id="searchbox" hidden><input id="q" type="search" placeholder="Search your shows" autocomplete="off" enterkeyhint="search" aria-label="Search your shows"><button id="q-clear" aria-label="Close search">✕</button></div>
+  <div id="list-hint" class="list-hint"></div>
   <main id="list"></main>
 </div>
 <div id="view-upcoming" hidden>
@@ -564,7 +582,7 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {}, tmEp: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
-let filter = 'unwatched';
+let filter = 'unwatched';   // set properly once the mode is known (see below)
 const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 try { const c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (c && c.shows) state = sanitize(c); } catch (e) {}
 
@@ -713,6 +731,7 @@ const showById = id => SHOWS.find(s => s.id === id);
 const MODE_KEY = 'tvshows.mode';
 let mode = 'rewatch';
 try { const m = localStorage.getItem(MODE_KEY); if (m === 'watch' || m === 'rewatch') mode = m; } catch (e) {}
+filter = mode === 'rewatch' ? 'all' : 'unwatched';
 function defaultList(s, lists) { const l = (lists || state.lists)[s.id]; return l === 'watch' || l === 'rewatch' ? l : (s.custom ? 'watch' : 'rewatch'); }
 const listOf = s => defaultList(s);
 // Within Watching: shows you watch on your own, or with your wife
@@ -728,8 +747,7 @@ function setCur(id) { const s = showById(id); if (s) state.cur[listOf(s)] = id; 
 // Watching has no Home tab and no time-taken tracking: its shows depend on when episodes air.
 function syncModeUI() {
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  document.querySelectorAll('[data-sub]').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
-  document.getElementById('subs').hidden = mode !== 'watch';
+  document.querySelectorAll('.lists [data-sub]').forEach(b => b.classList.toggle('on', mode === 'watch' && b.dataset.sub === sub));
   // Rewatching shows have all aired, so it has no Upcoming tab
   document.querySelector('[data-view="home"]').hidden = mode === 'watch';
   document.querySelector('[data-view="upcoming"]').hidden = mode === 'rewatch';
@@ -739,13 +757,14 @@ function syncModeUI() {
 function setMode(m) {
   mode = m === 'watch' ? 'watch' : 'rewatch';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
-  filter = 'unwatched';
+  filter = defaultFilter();
   syncModeUI(); render();
 }
 function setSub(g) {
   sub = g === 'wife' ? 'wife' : 'me';
   try { localStorage.setItem(SUB_KEY, sub); } catch (e) {}
-  filter = 'unwatched';
+  if (mode !== 'watch') { mode = 'watch'; try { localStorage.setItem(MODE_KEY, mode); } catch (e) {} }
+  filter = defaultFilter();
   syncModeUI(); render();
 }
 
@@ -1143,13 +1162,20 @@ function renderSummary() {
 
 // Unwatched = started, with aired episodes still to see (caught-up shows only appear under All).
 function filterKey(s) { const st = showStats(s); return st.status === 'watching' ? (st.caught ? 'caught' : 'unwatched') : st.status; }
+const FILTERS_W = [['unwatched', 'Unwatched'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
+const FILTERS_R = [['unwatched', 'In progress'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
+let FILTERS = FILTERS_W;
+const defaultFilter = () => rw() ? 'all' : 'unwatched';
+let filterCounts = {};
 function renderTabs() {
+  FILTERS = rw() ? FILTERS_R : FILTERS_W;
   const list = modeShows();
   const counts = { unwatched: 0, new: 0, done: 0, all: list.length };
   list.forEach(s => { const k = filterKey(s); if (k in counts) counts[k]++; });
-  const tabs = [['unwatched', 'Unwatched'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
-  document.getElementById('tabs').innerHTML = tabs.map(([k, l]) =>
-    `<button data-tab="${k}" class="${filter === k ? 'on' : ''}">${l} (${counts[k]})</button>`).join('');
+  filterCounts = counts;
+  document.getElementById('filter-pop').innerHTML = FILTERS.map(([k, l]) =>
+    `<button class="fopt${filter === k ? ' on' : ''}" role="menuitemradio" aria-checked="${filter === k}" data-tab="${k}">${l}<span>${counts[k]}</span></button>`).join('');
+  document.getElementById('btn-filter').classList.toggle('on', filter !== defaultFilter());
 }
 
 function showHTML(s, where) {
@@ -1159,6 +1185,7 @@ function showHTML(s, where) {
     : st.caught ? `<span class="pill watching">Caught up</span>`
     : st.status === 'watching' ? `<span class="pill watching">${rw() ? 'Day ' + daysSpan(st.start, Date.now()) : 'Watching'}</span>`
     : `<span class="pill">Not started</span>`;
+  const pillHTML = pillOff && !st.caught ? '' : pill;
   const logged = state.history.filter(h => h.id === s.id).length;
   let timing;
   if (st.status === 'new') timing = `About <b>${fmtH(st.totalMin)}</b> to watch.`;
@@ -1212,11 +1239,11 @@ function showHTML(s, where) {
       <div class="eps">${rows}</div></div>`;
   }).join('') + (anyEst ? `<div class="note">~ marks seasons where exact per-episode runtimes weren't available, so a typical episode length is used.</div>` : '') : '';
   const quick = listOf(s) === 'watch'
-    ? `<button class="qmove" data-group="${s.id}" aria-label="Move ${esc(s.name)} to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}">${groupOf(s) === 'wife' ? '→ My Shows' : '→ With Hazey'}</button>` : '';
+    ? `<button class="qmove" data-group="${s.id}" title="Move to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}" aria-label="Move ${esc(s.name)} to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/></svg></button>` : '';
   return `<article class="show${open.has(s.id) ? ' open' : ''}${quick ? ' hasq' : ''}" id="show-${s.id}">${quick}
     <button class="head" data-toggle="${s.id}"><div class="hwrap">${artHTML(s)}<div class="info">
       <div class="row1"><div><div class="name">${esc(s.name)}</div>
-        <div class="meta">${where ? `<span class="where">${where}</span> · ` : ''}${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pill}</div>
+        <div class="meta">${where ? `<span class="where">${where}</span> · ` : ''}${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pillHTML}</div>
       <div class="bar${st.status === 'done' ? ' done' : ''}"><i style="width:${pct}%"></i></div>
       <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : st.caught ? (st.nextAir && st.nextAir.a ? 'Next ' + airLabel(st.nextAir.a).slice(5) : 'Caught up') : fmtH(st.totalMin - st.wMin) + ' left'}</span></div>
     </div></div></button>
@@ -1305,26 +1332,24 @@ function lastAired(s) {
   for (const sea of s.seasons) for (const a of (sea.airs || [])) if (a && a <= now && a > t) t = a;
   return t;
 }
+let pillOff = false;
 function renderList() {
   const searching = !!qNorm(query);
-  document.getElementById('tabs').hidden = searching;
-  document.getElementById('q-clear').hidden = !query;
-  if (searching) return renderSearch();
+  if (searching) { pillOff = false; return renderSearch(); }
+  // The filter already says what state these shows are in, so their cards skip the status pill (Watching only).
+  pillOff = !rw() && filter !== 'all';
   const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter);
   const az = (a, b) => a.name.localeCompare(b.name);
-  let hint;
   if (rw()) {
     // Rewatching: shortest time left first; finished shows go to the bottom.
     const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
     items.sort((a, b) => (left(a) - left(b)) || az(a, b));
-    hint = 'Sorted by least time left';
   } else {
     // Watching: newest episode first; finished shows A–Z (at the bottom of All).
     const D = new Map(items.map(s => [s.id, showStats(s).status === 'done' ? 1 : 0])), L = new Map(items.map(s => [s.id, lastAired(s)]));
     items.sort((a, b) => (D.get(a.id) - D.get(b.id)) || (D.get(a.id) ? az(a, b) : (L.get(b.id) - L.get(a.id)) || az(a, b)));
-    hint = filter === 'done' ? 'Sorted A–Z' : filter === 'all' ? 'Newest episode first · finished shows A–Z' : 'Newest episode first';
   }
-  document.getElementById('list-hint').textContent = hint;
+  document.getElementById('list-hint').textContent = `${(FILTERS.find(f => f[0] === filter) || FILTERS[3])[1]} · ${plural(items.length, 'show')}`;
   document.getElementById('list').innerHTML = (items.length ? items.map(s => showHTML(s)).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
@@ -1339,11 +1364,34 @@ const ensureStarted = (id, ts) => { if (!state.started[id]) state.started[id] = 
 
 document.getElementById('q').addEventListener('input', ev => { query = ev.target.value; renderList(); });
 document.getElementById('q').addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.target.blur(); });
-document.getElementById('q-clear').onclick = () => { const i = document.getElementById('q'); i.value = ''; query = ''; renderList(); i.focus(); };
+document.getElementById('q-clear').onclick = () => { setSearch(false); };
+function setSearch(on) {
+  const box = document.getElementById('searchbox'), i = document.getElementById('q'), b = document.getElementById('btn-search');
+  box.hidden = !on; b.classList.toggle('on', on); b.setAttribute('aria-expanded', on);
+  if (on) { closePops(); i.focus(); }
+  else if (query) { i.value = ''; query = ''; renderList(); }
+}
+document.getElementById('btn-search').onclick = () => setSearch(document.getElementById('searchbox').hidden);
+// Header pop-ups (filter menu, sync status): one open at a time; tap elsewhere to close
+function closePops(except) {
+  for (const [pop, btn] of [['filter-pop', 'btn-filter'], ['sync-pop', 'btn-sync']]) {
+    if (pop === except) continue;
+    document.getElementById(pop).hidden = true; document.getElementById(btn).setAttribute('aria-expanded', 'false');
+  }
+}
+function togglePop(pop, btn) {
+  const el = document.getElementById(pop), open = el.hidden;
+  closePops(pop); el.hidden = !open; document.getElementById(btn).setAttribute('aria-expanded', open);
+}
+document.getElementById('btn-filter').onclick = ev => { ev.stopPropagation(); renderTabs(); togglePop('filter-pop', 'btn-filter'); };
+document.getElementById('btn-sync').onclick = ev => { ev.stopPropagation(); togglePop('sync-pop', 'btn-sync'); };
+document.getElementById('signout').onclick = () => { closePops(); try { (window.Cloud && Cloud.signOut) ? Cloud.signOut() : firebase.auth().signOut(); } catch (e) {} };
+document.addEventListener('click', ev => { if (!ev.target.closest('.pop, #btn-filter, #btn-sync')) closePops(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closePops(); });
 document.addEventListener('click', ev => {
   const t = ev.target.closest('button'); if (!t) return;
   if (t.dataset.view) { showView(t.dataset.view); return; }
-  if (t.dataset.tab) { filter = t.dataset.tab; renderTabs(); renderList(); return; }
+  if (t.dataset.tab) { filter = t.dataset.tab; closePops(); renderTabs(); renderList(); window.scrollTo(0, 0); return; }
   if (t.dataset.toggle) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); renderList(); return; }
   if (t.dataset.stog) {
     const key = t.dataset.stog, box = t.closest('.season');
@@ -1727,6 +1775,8 @@ function showView(v) {
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
   if (curView !== v) { curView = v; if (typeof statsVer !== 'undefined') RENDER[v](); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  document.getElementById('btn-search').hidden = document.getElementById('btn-filter').hidden = v !== 'shows';
+  closePops();
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
 }
 showView(location.hash.slice(1));
@@ -1994,7 +2044,12 @@ const syncEl = document.getElementById('sync');
 let col = null, dirty = false, writing = false, flushTimer = null, readOnly = false;
 const lastSent = new Map();   // record id -> canonical JSON last written or received
 let remoteIds = new Set();
-function setSync(t) { syncEl.textContent = t; }
+function setSync(t) {
+  syncEl.textContent = t;
+  const st = /^Synced/.test(t) ? 'ok' : /Saving|Connecting/.test(t) ? 'busy' : 'off';
+  const b = document.getElementById('btn-sync'); b.dataset.st = st; b.setAttribute('aria-label', t);
+  document.getElementById('signout').hidden = !(window.Cloud && Cloud.user);
+}
 function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
 // JSON with sorted keys, so the same data always compares equal whatever order the server returns it in
 function canon(x) {
