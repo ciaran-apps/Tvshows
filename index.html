@@ -120,6 +120,12 @@
   .bk-out textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:12px/1.4 ui-monospace,Menlo,monospace;margin-bottom:8px;resize:vertical}
   .sg-report{font-size:12.5px;color:var(--muted);line-height:1.55;margin-top:8px}
   .sg-report b{color:var(--text)}
+  .cmp{margin:10px 0 4px;border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+  .cmp h3{margin:0 0 4px;font-size:13px;color:var(--text)}
+  .cmp ul{margin:4px 0 6px;padding-left:18px;max-height:210px;overflow:auto}
+  .cmp li{margin:1px 0}
+  .cmp .go{margin-top:4px;background:var(--accent);border:1px solid var(--accent);color:#16141c;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600}
+  .cmp.ok{border-style:dashed}
   .bk-msg{font-size:12.5px;color:var(--accent);min-height:16px}
   .art.sm{width:40px;height:60px;font-size:14px;border-radius:7px}
   #history h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:20px 2px 8px}
@@ -292,7 +298,7 @@
     </div>
     <div class="sg">
       <h2 style="margin-top:16px">Import from SeriesGuide</h2>
-      <p>Choose a SeriesGuide shows export (.json). Each show is found on TVmaze and added to Watching under Just me, with the episodes you've watched ticked. Shows already in Rewatching are left alone. It takes a few minutes for a big library — keep the app open. You can run it again safely: shows already imported are skipped.</p>
+      <p>Choose a SeriesGuide shows export (.json). You'll first see how it compares with this app: shows missing from either one, and shows with fewer episodes ticked here. Then you choose what to bring across. Missing shows are found on TVmaze and added to Watching under Just me. Shows in Rewatching are left alone. Keep the app open while it works.</p>
       <div class="bk-btns"><label class="bk-file bk-go">Choose SeriesGuide file<input type="file" accept=".json,application/json" id="sg-file"></label>
         <button type="button" id="sg-stop" hidden>Stop</button></div>
       <div id="sg-prog" hidden><div class="bar" style="margin:12px 0 6px"><i id="sg-bar" style="width:0%"></i></div><div class="bk-msg" id="sg-msg" role="status"></div></div>
@@ -1665,14 +1671,14 @@ function sgTicks(sg, d) {
   if (last && sg.last_watched_ms > 1e11) ticks[last] = sg.last_watched_ms;
   return ticks;
 }
-async function importSeriesGuide(list) {
+async function importSeriesGuide(list, opts = {}) {
   const bar = document.getElementById('sg-bar'), msg = document.getElementById('sg-msg'), report = document.getElementById('sg-report');
   const stopBtn = document.getElementById('sg-stop');
   document.getElementById('sg-prog').hidden = false; stopBtn.hidden = false; report.innerHTML = '';
   sgStop = false;
   let lock = null;
   try { lock = await navigator.wakeLock.request('screen'); } catch (e) {}   // keep the screen on while importing
-  const res = { added: [], merged: [], already: [], rewatch: [], missing: [], failed: [] };
+  const res = { added: [], merged: [], already: [], rewatch: [], missing: [], failed: [], clash: [] };
   const builtinNames = new Map(BUILTIN.map(b => [sgNorm(b.name), b.name]));
   for (let i = 0; i < list.length; i++) {
     if (sgStop) break;
@@ -1681,22 +1687,24 @@ async function importSeriesGuide(list) {
     msg.textContent = `Importing ${i + 1} of ${list.length} · ${title}`;
     try {
       if (builtinNames.has(sgNorm(title))) { res.rewatch.push(title); continue; }
-      if (sg.tvdb_id && state.custom.some(c => c.sg === sg.tvdb_id)) { res.already.push(title); continue; }
-      const tm = await sgFindTvmaze(sg);
+      const known = sgMatch(sg);
+      if (known && !opts.merge) { res.already.push(title); continue; }
+      const tm = known && known.tm ? known.tm : await sgFindTvmaze(sg);
       if (!tm) { res.missing.push(title); continue; }
       const d = await tmGet('/shows/' + tm + '?embed=episodes');
       const ticks = sgTicks(sg, d);
       const existing = state.custom.find(c => c.kind === 'tm' && c.tm === tm);
+      if (existing && existing.sg && existing.sg !== sgId(sg)) { res.clash.push(title); continue; }   // same TVmaze show as a different SeriesGuide show (e.g. two "Top Boy"s)
       if (existing) {
         // Already in the app (e.g. added by search): keep it and add any ticks it's missing
         const m = watchedMap(existing.id);
         for (const k in ticks) if (!m[k]) m[k] = ticks[k];
-        existing.sg = sg.tvdb_id || existing.sg || 0;
+        existing.sg = sgId(sg) || existing.sg || 0;
         res.merged.push(title);
       } else {
         const entry = tmEntry(d);
         if (!entry.s.length) { res.missing.push(title); continue; }
-        entry.sg = sg.tvdb_id || 0;
+        entry.sg = sgId(sg);
         state.custom.push(entry);
         state.lists[entry.id] = 'watch';
         state.groups[entry.id] = 'me';
@@ -1720,9 +1728,69 @@ async function importSeriesGuide(list) {
   const line = (label, arr, show) => arr.length ? `<div><b>${arr.length}</b> ${label}${show ? ': ' + esc(arr.slice(0, 40).join(', ')) + (arr.length > 40 ? '…' : '') : ''}</div>` : '';
   report.innerHTML = line('added to Watching', res.added) + line('already in the app, ticks added', res.merged, true) +
     line('imported earlier, skipped', res.already) + line('left alone because they’re in Rewatching', res.rewatch, true) +
-    line('not found on TVmaze', res.missing, true) + line('couldn’t be imported (try again later)', res.failed, true);
+    line('not added because TVmaze matched them to a different show already here', res.clash, true) + line('not found on TVmaze', res.missing, true) + line('couldn’t be imported (try again later)', res.failed, true);
 }
 document.getElementById('sg-stop').onclick = () => { sgStop = true; document.getElementById('sg-msg').textContent = 'Stopping…'; };
+// ---------- Compare with SeriesGuide ----------
+// Which app show (if any) a SeriesGuide show is: by the id saved at import, else by name.
+// SeriesGuide's id for a show: its TVDB id, or minus its TMDB id for shows TVDB doesn't have.
+const sgId = sg => Number.isInteger(sg.tvdb_id) && sg.tvdb_id > 0 ? sg.tvdb_id : Number.isInteger(sg.tmdb_id) && sg.tmdb_id > 0 ? -sg.tmdb_id : 0;
+// By id first; by name only for shows not already tied to another SeriesGuide show.
+function sgMatch(sg) {
+  const id = sgId(sg), n = sgNorm(sg.title);
+  return (id && state.custom.find(c => c.sg === id)) ||
+    state.custom.find(c => !c.sg && sgNorm(c.name) === n) || null;
+}
+function sgBuiltin(sg) { const n = sgNorm(sg.title); return BUILTIN.find(b => sgNorm(b.name) === n) || null; }
+const sgWatched = sg => (sg.seasons || []).reduce((n, se) => n + (se && se.season > 0 ? (se.episodes || []).filter(e => e && e.watched).length : 0), 0);
+let sgList = null;
+function renderCompare() {
+  const list = sgList, report = document.getElementById('sg-report');
+  const missing = [], behind = [], matched = new Set();
+  for (const sg of list) {
+    const b = sgBuiltin(sg);
+    if (b) { matched.add(b.id); continue; }
+    const c = sgMatch(sg);
+    if (!c) { missing.push(sg); continue; }
+    matched.add(c.id);
+    const show = showById(c.id), have = show ? showStats(show).wEps : 0, want = sgWatched(sg);
+    if (want > have) behind.push({ sg, have, want, where: show ? whereOf(show) : '' });
+  }
+  const extra = SHOWS.filter(s => !matched.has(s.id));
+  const li = t => `<li>${t}</li>`;
+  const box = (title, items, btn, empty) => items.length
+    ? `<div class="cmp"><h3>${title} (${items.length})</h3><ul>${items.join('')}</ul>${btn || ''}</div>`
+    : `<div class="cmp ok"><h3>${empty}</h3></div>`;
+  report.innerHTML =
+    box('In SeriesGuide, not in this app', missing.map(sg => li(esc(sg.title) + (sg.hidden ? ' <span style="opacity:.7">(hidden in SeriesGuide)</span>' : ''))),
+      `<button type="button" class="bk-go go" data-sgdo="missing">Add ${plural(missing.length, 'show')} to Watching → Just me</button>`, '✓ Every SeriesGuide show is in this app') +
+    box('Fewer episodes ticked here', behind.map(x => li(`${esc(x.sg.title)} · ${x.have} here, ${x.want} in SeriesGuide${x.where ? ` · <span class="where">${x.where}</span>` : ''}`)),
+      `<button type="button" class="bk-go go" data-sgdo="behind">Tick the missing episodes</button>`, '✓ Nothing ticked in SeriesGuide is missing here') +
+    box('In this app, not in SeriesGuide', extra.map(s => li(`${esc(s.name)} · <span class="where">${whereOf(s)}</span>`)), '', '✓ Every show here is in SeriesGuide');
+  report._missing = missing; report._behind = behind.map(x => x.sg);
+}
+document.getElementById('sg-report').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-sgdo]'); if (!b) return;
+  const report = document.getElementById('sg-report');
+  if (b.dataset.sgdo === 'missing') {
+    const l = report._missing || []; if (!l.length) return;
+    confirmBox(`Add ${plural(l.length, 'show')} from SeriesGuide to Watching → Just me?`, 'Add', async () => {
+      if (mode !== 'watch') setMode('watch');
+      await importSeriesGuide(l); sgAfter();
+    });
+  } else {
+    const l = report._behind || []; if (!l.length) return;
+    confirmBox(`Tick the episodes you'd watched in SeriesGuide for ${plural(l.length, 'show')}? Nothing already ticked here is removed, and shows stay where they are.`, 'Tick', async () => {
+      await importSeriesGuide(l, { merge: true }); sgAfter();
+    });
+  }
+});
+// After an import, show its summary with a fresh comparison under it.
+function sgAfter() {
+  const report = document.getElementById('sg-report'), summary = report.innerHTML;
+  renderCompare();
+  report.insertAdjacentHTML('afterbegin', `<div style="margin-bottom:6px">${summary}</div>`);
+}
 document.getElementById('sg-file').addEventListener('change', async ev => {
   const f = ev.target.files && ev.target.files[0]; ev.target.value = '';
   if (!f) return;
@@ -1732,11 +1800,9 @@ document.getElementById('sg-file').addEventListener('change', async ev => {
   if (!Array.isArray(list) || !list.length || !list.every(x => x && typeof x.title === 'string' && Array.isArray(x.seasons))) {
     report.textContent = 'That doesn’t look like a SeriesGuide shows export. In SeriesGuide, use Settings → Export → Shows (JSON).'; return;
   }
-  const eps = list.reduce((n, x) => n + x.seasons.reduce((m, se) => m + ((se && se.episodes) || []).length, 0), 0);
-  confirmBox(`Import ${plural(list.length, 'show')} (${eps.toLocaleString()} episodes) from SeriesGuide into Watching → Just me? It takes a few minutes; keep the app open.`, 'Import', () => {
-    if (mode !== 'watch') setMode('watch');
-    importSeriesGuide(list);
-  });
+  sgList = list;
+  document.getElementById('sg-prog').hidden = true;
+  renderCompare();
 });
 
 function restoreBackup(txt) {
