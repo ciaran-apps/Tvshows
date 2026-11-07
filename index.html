@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TV Shows</title>
-<meta name="description" content="Track your TV rewatches: every episode, how long each show takes and your watch history.">
+<meta name="description" content="Track the TV you are watching and rewatching: every episode, air dates, how long each show takes and your history.">
 <meta name="theme-color" content="#16141c">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -41,6 +41,10 @@
   .stat div{font-size:16px;font-weight:600}
   @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
 
+  .modes{display:flex;gap:4px;margin:2px 0 12px;border-bottom:1px solid var(--line)}
+  .modes button{flex:1;background:none;border:0;border-bottom:2px solid transparent;padding:8px 4px 10px;font-size:15px;font-weight:600;color:var(--muted);margin-bottom:-1px}
+  .modes button.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .movebtn{color:var(--accent)!important;opacity:1!important}
   .views{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:4px}
   .views button{flex:1;min-width:0;background:none;border:0;border-radius:9px;padding:9px 2px;font-size:13px;font-weight:600;color:var(--muted)}
   .views button.on{background:var(--accent);color:#16141c}
@@ -228,6 +232,10 @@
 <h1>TV Shows</h1>
 <div class="sync" id="sync"></div>
 
+<div class="modes" role="tablist" aria-label="Watching or rewatching">
+  <button data-mode="watch">Watching</button>
+  <button data-mode="rewatch">Rewatching</button>
+</div>
 <nav class="views" id="views">
   <button data-view="home" class="on">Home</button>
   <button data-view="shows">Shows</button>
@@ -468,7 +476,9 @@ const LS_KEY = 'tvshows.v1';
 // Posters are only ever loaded from TVmaze's own image server (never copied), as TVmaze asks.
 const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/uploads\/images\/[\w\/.-]+$/.test(u) && u.length < 300;
 // posters: TVmaze match for built-in / hand-entered shows { id: { u: posterUrl or '', tm: TVmaze id or 0 } }
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, seeds: [], posters: {} };
+// lists: which side a show is on, 'watch' or 'rewatch' (default: the original shows are rewatches, shows you add are watches)
+// cur: the Home show for each side
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, seeds: [], posters: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'all';
@@ -504,7 +514,13 @@ function sanitizeCustom(list) {
 function sanitize(d) {
   const out = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: sanitizeCustom(d && d.custom), current: null };
   SHOWS = buildShows(out.custom);
-  if (d && typeof d.current === 'string' && SHOWS.some(s => s.id === d.current)) out.current = d.current;
+  out.lists = {}; out.cur = { watch: null, rewatch: null };
+  const ls = d && typeof d.lists === 'object' && d.lists ? d.lists : {};
+  for (const s of SHOWS) if (ls[s.id] === 'watch' || ls[s.id] === 'rewatch') out.lists[s.id] = ls[s.id];
+  const cr = d && typeof d.cur === 'object' && d.cur ? d.cur : {};
+  for (const m of ['watch', 'rewatch']) if (typeof cr[m] === 'string' && SHOWS.some(s => s.id === cr[m])) out.cur[m] = cr[m];
+  // Before the Watching / Rewatching toggle there was a single current show
+  if (d && typeof d.current === 'string' && !d.cur) { const s = SHOWS.find(x => x.id === d.current); if (s) out.cur[defaultList(s, out.lists)] = s.id; }
   out.seeds = d && Array.isArray(d.seeds) ? d.seeds.filter(x => Number.isInteger(x)).slice(0, 50) : [];
   out.posters = {};
   const ps = d && typeof d.posters === 'object' && d.posters ? d.posters : {};
@@ -520,7 +536,7 @@ function sanitize(d) {
   if (d && Array.isArray(d.history)) for (const h of d.history.slice(0, 500)) {
     if (!h || !SHOWS.some(s => s.id === h.id) || !(okTs(h.start) || h.start === 0) || !(okTs(h.end) || h.end === 0)) continue;
     out.history.push({ h: typeof h.h === 'string' ? h.h.slice(0, 20) : Math.random().toString(36).slice(2, 10),
-      id: h.id, start: h.start, end: h.end, eps: Math.max(0, +h.eps || 0), min: Math.max(0, +h.min || 0) });
+      id: h.id, start: h.start, end: h.end, eps: Math.max(0, +h.eps || 0), min: Math.max(0, +h.min || 0), m: h.m === 'watch' ? 'watch' : 'rewatch' });
   }
   const src = d && typeof d.shows === 'object' && d.shows ? d.shows : {};
   for (const s of SHOWS) {
@@ -585,14 +601,33 @@ const isoDate = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad
 const fmtDay = ts => new Date(ts).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const showById = id => SHOWS.find(s => s.id === id);
 
+// ---------- Watching / Rewatching ----------
+// Every tab shows one side at a time. The side you're on is remembered on this device.
+const MODE_KEY = 'tvshows.mode';
+let mode = 'rewatch';
+try { const m = localStorage.getItem(MODE_KEY); if (m === 'watch' || m === 'rewatch') mode = m; } catch (e) {}
+function defaultList(s, lists) { const l = (lists || state.lists)[s.id]; return l === 'watch' || l === 'rewatch' ? l : (s.custom ? 'watch' : 'rewatch'); }
+const listOf = s => defaultList(s);
+const inMode = s => listOf(s) === mode;
+const modeShows = () => SHOWS.filter(inMode);
+const rw = () => mode === 'rewatch';
+function setCur(id) { const s = showById(id); if (s) state.cur[listOf(s)] = id; }
+function setMode(m) {
+  mode = m === 'watch' ? 'watch' : 'rewatch';
+  try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+  filter = 'all';
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  render();
+}
+
 // ---------- Home: the show you're watching now ----------
 // The current show is the one you picked with "Change show", or the one you last ticked an episode on.
 // Shows you'd already rewatched before tracking can't be current until you tap "Watch it again".
 function currentShow() {
-  const pick = state.current && showById(state.current);
-  if (pick && !showStats(pick).virtual) return pick;
+  const pick = state.cur[mode] && showById(state.cur[mode]);
+  if (pick && inMode(pick) && !showStats(pick).virtual) return pick;
   let best = null, bt = 0;
-  for (const s of SHOWS) {
+  for (const s of modeShows()) {
     const st = showStats(s);
     if (st.status !== 'watching') continue;
     const t = Math.max(st.last || 0, st.start || 0);
@@ -602,7 +637,7 @@ function currentShow() {
 }
 function watchedSince(ts) {
   let n = 0, min = 0;
-  for (const s of SHOWS) {
+  for (const s of modeShows()) {
     const w = state.shows[s.id] || {};
     for (const k in w) if (w[k] >= ts) { const [si, e] = k.split('-').map(Number); n++; min += rtOfEp(s, si, e); }
   }
@@ -616,7 +651,7 @@ function upcoming(s, count) {
   return out;
 }
 function pickable() {
-  return SHOWS.map(s => ({ s, st: showStats(s) })).filter(x => !x.st.virtual && x.st.status !== 'done');
+  return modeShows().map(s => ({ s, st: showStats(s) })).filter(x => !x.st.virtual && x.st.status !== 'done');
 }
 function suggRow(x, cur) {
   const { s, st } = x;
@@ -653,7 +688,7 @@ function renderHome() {
     el.innerHTML = `<div class="hero donecard">${artHTML(s)}
       <div class="hero-k" style="margin-top:12px">Finished 🎉</div>
       <div class="hero-name">${esc(s.name)}</div>
-      <p>${fmtD(st.start)} → ${fmtD(st.last)}<br>You rewatched it in <b style="color:var(--text)">${plural(d, 'day')}</b> · ${fmtH(st.totalMin)} · ${fmtH(st.totalMin / d)} a day</p>
+      <p>${fmtD(st.start)} → ${fmtD(st.last)}<br>You ${rw() ? 'rewatched' : 'watched'} it in <b style="color:var(--text)">${plural(d, 'day')}</b> · ${fmtH(st.totalMin)} · ${fmtH(st.totalMin / d)} a day</p>
       <button class="bigbtn" data-pick="1">Pick your next show</button></div>
       ${next.length ? `<div class="hsec"><h2>Up next?</h2>${next.map(x => suggRow(x)).join('')}</div>` : ''}${strip}`;
     return;
@@ -735,7 +770,7 @@ const clock = ts => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit'
 function renderUpcoming() {
   const el = document.getElementById('upcoming'); if (!el) return;
   const now = Date.now(), soon = [], tba = [], ready = [];
-  const airing = SHOWS.filter(s => s.tm);
+  const airing = modeShows().filter(s => s.tm);
   for (const s of airing) {
     const w = state.shows[s.id] || {};
     let tbaN = 0;
@@ -775,9 +810,9 @@ async function syncAll() {
 function renderHistory() {
   const now = Date.now();
   // Completed: logged rewatches + shows currently finished but not yet logged
-  const done = state.history.map(h => ({ ...h, logged: true }));
+  const done = state.history.filter(h => h.m === mode).map(h => ({ ...h, logged: true }));
   const inProg = [];
-  for (const s of SHOWS) {
+  for (const s of modeShows()) {
     const st = showStats(s);
     if (st.status === 'done') done.push({ id: s.id, start: st.start || 0, end: st.last || 0, eps: st.totalEps, min: st.totalMin, logged: false, before: !!st.virtual });
     else if (st.status === 'watching') inProg.push({ s, st });
@@ -793,7 +828,7 @@ function renderHistory() {
       <div class="hmeta"><b>${plural(d, 'day')}</b> · ${fmtH(h.min)} · ${fmtH(h.min / d)}/day</div>`
       : `<div class="hmeta">Dates not set · ${fmtH(h.min)}</div>${h.logged ? '' : `<div class="hmeta">Open ${esc(s.name)} in Shows to add them</div>`}`}</div>
       ${h.logged ? `<button class="hdel" data-delhist="${esc(h.h)}" aria-label="Delete this entry">✕</button>` : ''}</div>`;
-  }).join('') : `<div class="empty small">No finished rewatches yet. They'll show up here as soon as you finish a show.</div>`;
+  }).join('') : `<div class="empty small">No finished ${rw() ? 'rewatches' : 'shows'} yet. They'll show up here as soon as you finish a show.</div>`;
 
   const progHTML = inProg.length ? inProg.map(({ s, st }) => {
     const d = daysSpan(st.start, now), pct = (st.totalMin ? st.wMin / st.totalMin * 100 : 0), perDay = st.wMin / d;
@@ -806,7 +841,7 @@ function renderHistory() {
 
   // Watch log: every ticked episode, grouped by day (newest first)
   const evts = [];
-  for (const s of SHOWS) {
+  for (const s of modeShows()) {
     const w = state.shows[s.id] || {};
     for (const k in w) { const [si, e] = k.split('-').map(Number); evts.push({ s, si, e, ts: w[k] }); }
   }
@@ -823,7 +858,7 @@ function renderHistory() {
     : `<div class="empty small">Episodes you tick off will appear here, grouped by day.</div>`;
 
   document.getElementById('history').innerHTML = `
-    <h2>Finished rewatches</h2>${doneHTML}
+    <h2>${rw() ? 'Finished rewatches' : 'Finished'}</h2>${doneHTML}
     <h2>In progress</h2>${progHTML}
     <h2>Watch log</h2>${logHTML}`;
 }
@@ -831,7 +866,8 @@ function renderHistory() {
 // ---------- Render ----------
 function renderSummary() {
   let tMin = 0, wMin = 0, tEps = 0, wEps = 0, first = null, doneShows = 0, trackedMin = 0;
-  for (const s of SHOWS) {
+  const list = modeShows();
+  for (const s of list) {
     const st = showStats(s);
     tMin += st.totalMin; wMin += st.wMin; tEps += st.totalEps; wEps += st.wEps;
     if (!st.virtual) trackedMin += st.wMin;
@@ -852,7 +888,7 @@ function renderSummary() {
     <div class="bar${pct >= 100 ? ' done' : ''}"><i style="width:${pct}%"></i></div>
     <div class="stats">
       <div class="stat"><small>Episodes</small><div>${wEps} / ${tEps}</div></div>
-      <div class="stat"><small>Shows done</small><div>${doneShows} / ${SHOWS.length}</div></div>
+      <div class="stat"><small>Shows done</small><div>${doneShows} / ${list.length}</div></div>
       <div class="stat"><small>${first ? 'Since ' + fmtD(first) : 'Started'}</small><div>${first ? days : 'Not yet'}</div></div>
       <div class="stat"><small>Your pace</small><div>${pace}</div></div>
       <div class="stat" style="grid-column:1/-1"><small>Finish everything by (at your pace)</small><div>${eta}</div></div>
@@ -860,8 +896,9 @@ function renderSummary() {
 }
 
 function renderTabs() {
-  const counts = { all: SHOWS.length, watching: 0, new: 0, done: 0 };
-  SHOWS.forEach(s => counts[showStats(s).status]++);
+  const list = modeShows();
+  const counts = { all: list.length, watching: 0, new: 0, done: 0 };
+  list.forEach(s => counts[showStats(s).status]++);
   const tabs = [['all', 'All'], ['watching', 'Watching'], ['new', 'Not started'], ['done', 'Finished']];
   document.getElementById('tabs').innerHTML = tabs.map(([k, l]) =>
     `<button data-tab="${k}" class="${filter === k ? 'on' : ''}">${l} (${counts[k]})</button>`).join('');
@@ -882,23 +919,23 @@ function showHTML(s) {
     : `Rewatched ${fmtD(st.start)} → ${fmtD(st.last)} — took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
   else if (st.caught) timing = `You're caught up — you've seen all ${st.totalEps} aired episodes. ` +
     (st.nextAir ? `Next: <b>S${st.nextAir.si} E${st.nextAir.e}</b> · ${st.nextAir.a ? airLabel(st.nextAir.a).replace('Airs', 'airs') : 'air date not announced yet'}.` : 'No new episodes announced yet.');
-  else if (st.status === 'done') timing = `Finished <b>${fmtD(st.last)}</b> — this rewatch took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
+  else if (st.status === 'done') timing = `Finished <b>${fmtD(st.last)}</b> — ${rw() ? 'this rewatch' : 'it'} took you <b>${plural(daysSpan(st.start, st.last), 'day')}</b> (${fmtH(st.totalMin)}).`;
   else {
     const d = daysSpan(st.start, Date.now()), perDay = st.wMin / d;
-    timing = `Day <b>${d}</b> of this rewatch. Watched <b>${fmtH(st.wMin)}</b>, <b>${fmtH(st.totalMin - st.wMin)}</b> left` +
+    timing = `Day <b>${d}</b>${rw() ? ' of this rewatch' : ''}. Watched <b>${fmtH(st.wMin)}</b>, <b>${fmtH(st.totalMin - st.wMin)}</b> left` +
       (perDay > 0 ? ` — at ${fmtH(perDay)}/day you'll finish around <b>${fmtD(Date.now() + (st.totalMin - st.wMin) / perDay * DAY)}</b>.` : '.');
   }
   const today = isoDate(Date.now());
   const startRow = st.status === 'new'
-    ? `<button class="startbtn" data-startnow="${s.id}">▶ Start rewatch today</button>`
-    : `<label class="startrow">Rewatch started <input type="date" data-start="${s.id}" value="${st.start ? isoDate(st.start) : ''}" max="${today}"></label>` +
-      (st.virtual ? `<label class="startrow">Rewatch finished <input type="date" data-end="${s.id}" value="${st.last ? isoDate(st.last) : ''}" max="${today}"></label>` : '');
+    ? `<button class="startbtn" data-startnow="${s.id}">▶ ${rw() ? 'Start rewatch' : 'Start watching'} today</button>`
+    : `<label class="startrow">${rw() ? 'Rewatch started' : 'Started watching'} <input type="date" data-start="${s.id}" value="${st.start ? isoDate(st.start) : ''}" max="${today}"></label>` +
+      (st.virtual ? `<label class="startrow">${rw() ? 'Rewatch finished' : 'Finished watching'} <input type="date" data-end="${s.id}" value="${st.last ? isoDate(st.last) : ''}" max="${today}"></label>` : '');
   const doneRow = st.status === 'done'
-    ? `<button class="logbtn" data-log="${s.id}">${st.virtual ? 'Watch it again — log this rewatch to History' : 'Log this rewatch to History &amp; start fresh'}</button>` : '';
+    ? `<button class="logbtn" data-log="${s.id}">${st.virtual ? 'Watch it again — log this rewatch to History' : rw() ? 'Log this rewatch to History &amp; start fresh' : 'Log to History &amp; watch it again'}</button>` : '';
   const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + 'h ago' : fmtD(t); };
   const syncRow = s.tm ? `<div class="syncrow"><button class="sbtn" data-sync="${s.id}"${syncing.has(s.id) ? ' disabled' : ''}>${syncing.has(s.id) ? 'Syncing…' : '⟳ Sync episodes'}</button>
     <span>${esc(syncMsg[s.id] || ((s.tmStatus === 'Ended' ? 'Ended' : s.tmStatus || 'TVmaze') + (s.synced ? ' · synced ' + ago(s.synced) : '')))}${st.unaired ? ` · ${plural(st.unaired, 'episode')} still to air` : ''}</span></div>` : '';
-  const prevRow = logged ? `<div class="note" style="margin:0 0 10px">You've logged ${logged === 1 ? 'one previous rewatch' : logged + ' previous rewatches'} of ${esc(s.name)} — see History.</div>` : '';
+  const prevRow = logged ? `<div class="note" style="margin:0 0 10px">You've logged ${logged === 1 ? 'one previous watch' : logged + ' previous watches'} of ${esc(s.name)} — see History.</div>` : '';
   const anyEst = s.seasons.some(x => x.est);
   const seasons = open.has(s.id) ? s.seasons.map((sea, i) => {
     const si = i + 1, n = sea.titles.filter((_, j) => isAired(sea, j)).length, toAir = sea.titles.length - n; let c = 0, wm = 0;
@@ -939,6 +976,7 @@ function showHTML(s) {
       ${doneRow}${prevRow}
       ${seasons}
       ${st.wEps && !st.virtual ? `<button class="reset" data-reset="${s.id}">Reset progress for ${esc(s.name)}</button>` : ''}
+      <button class="reset movebtn" data-move="${s.id}">Move to ${listOf(s) === 'watch' ? 'Rewatching' : 'Watching'}</button>
       ${tmIdOf(s) ? `<div style="margin-top:8px"><a class="tmlink" href="https://www.tvmaze.com/shows/${tmIdOf(s)}" target="_blank" rel="noopener">View ${esc(s.name)} on TVmaze ↗</a></div>` : ''}
       ${s.custom ? `<button class="reset" data-rmshow="${s.id}">Remove ${esc(s.name)} from the tracker</button>` : ''}
     </div>
@@ -1008,7 +1046,7 @@ document.addEventListener('change', async ev => {
 function renderList() {
   // Shortest time left first; finished shows go to the bottom.
   const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
-  const items = SHOWS.filter(s => filter === 'all' || showStats(s).status === filter)
+  const items = modeShows().filter(s => filter === 'all' || showStats(s).status === filter)
     .sort((a, b) => (left(a) - left(b)) || a.name.localeCompare(b.name));
   document.getElementById('list').innerHTML = (items.length ? items.map(showHTML).join('')
     : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
@@ -1036,22 +1074,32 @@ document.addEventListener('click', ev => {
     if (!isAired(showById(id).seasons[si - 1], e - 1)) return;   // already rewatched: use "Watch it again" to start a new rewatch
     const m = watchedMap(id), k = si + '-' + e;
     seasonOpen.set(id + '|' + si, true);
-    if (m[k]) delete m[k]; else { m[k] = Date.now(); ensureStarted(id, m[k]); state.current = id; }
+    if (m[k]) delete m[k]; else { m[k] = Date.now(); ensureStarted(id, m[k]); setCur(id); }
     changed(); return;
   }
   if (t.dataset.season) {
     const [id, si, on] = t.dataset.season.split('|'), s = showById(id), m = watchedMap(id), now = Date.now();
     const sea = s.seasons[si - 1];
     for (let e = 1; e <= epCount(s, +si); e++) { const k = si + '-' + e; if (!isAired(sea, e - 1)) continue; if (on === '1') { if (!m[k]) m[k] = now; } else delete m[k]; }
-    if (on === '1') { ensureStarted(id, now); state.current = id; }
+    if (on === '1') { ensureStarted(id, now); setCur(id); }
     changed(); return;
   }
   if (t.dataset.next) {
     const s = showById(t.dataset.next), st = showStats(s);
-    if (st.next) { const now = Date.now(); watchedMap(s.id)[st.next.si + '-' + st.next.e] = now; ensureStarted(s.id, now); state.current = s.id; }
+    if (st.next) { const now = Date.now(); watchedMap(s.id)[st.next.si + '-' + st.next.e] = now; ensureStarted(s.id, now); setCur(s.id); }
     changed(); return;
   }
-  if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); state.current = t.dataset.startnow; changed(); return; }
+  if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); setCur(t.dataset.startnow); changed(); return; }
+  if (t.dataset.mode) { setMode(t.dataset.mode); return; }
+  if (t.dataset.move) {
+    const s = showById(t.dataset.move); if (!s) return;
+    const to = listOf(s) === 'watch' ? 'rewatch' : 'watch', from = listOf(s);
+    if (state.cur[from] === s.id) state.cur[from] = null;
+    state.lists[s.id] = to;
+    open.delete(s.id);
+    changed();
+    return;
+  }
   if (t.dataset.undo) {
     const m = state.shows[t.dataset.undo] || {}; let lk = null;
     for (const k in m) if (!lk || m[k] > m[lk]) lk = k;
@@ -1061,7 +1109,7 @@ document.addEventListener('click', ev => {
   if (t.dataset.pick) { openPicker(); return; }
   if (t.dataset.sync) { syncShow(t.dataset.sync); return; }
   if (t.dataset.syncall) { syncAll(); return; }
-  if (t.dataset.pickshow) { state.current = t.dataset.pickshow; closePicker(); changed(); showView('home'); window.scrollTo(0, 0); return; }
+  if (t.dataset.pickshow) { setCur(t.dataset.pickshow); closePicker(); changed(); showView('home'); window.scrollTo(0, 0); return; }
   if (t.dataset.goshow) {
     const id = t.dataset.goshow; open.add(id); filter = 'all'; showView('shows'); renderTabs(); renderList();
     setTimeout(() => { const el = document.getElementById('show-' + id); if (el) el.scrollIntoView({ block: 'start' }); }, 30);
@@ -1069,10 +1117,10 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.log) {
     const s = showById(t.dataset.log);
-    confirmBox(`Save this rewatch of ${s.name} to History and clear its episodes so you can watch it again?`, 'Log it', () => {
+    confirmBox(`Save this ${listOf(s) === 'rewatch' ? 'rewatch' : 'watch'} of ${s.name} to History and clear its episodes so you can watch it again?`, 'Log it', () => {
       const st = showStats(s);
       if (st.status !== 'done') return;
-      state.history.push({ h: Math.random().toString(36).slice(2, 10), id: s.id, start: st.start || 0, end: st.last || 0, eps: st.totalEps, min: st.totalMin });
+      state.history.push({ h: Math.random().toString(36).slice(2, 10), id: s.id, start: st.start || 0, end: st.last || 0, eps: st.totalEps, min: st.totalMin, m: listOf(s) });
       state.shows[s.id] = {}; delete state.started[s.id]; delete state.ended[s.id];
       if (s.pre) state.cleared[s.id] = true;
       changed();
@@ -1081,7 +1129,7 @@ document.addEventListener('click', ev => {
   }
   if (t.dataset.delhist) {
     const h = state.history.find(x => x.h === t.dataset.delhist); if (!h) return;
-    confirmBox(`Delete the ${showById(h.id).name} rewatch (${fmtD(h.start)} → ${fmtD(h.end)}) from History?`, 'Delete', () => {
+    confirmBox(`Delete the ${showById(h.id).name} ${h.m === 'rewatch' ? 'rewatch' : 'watch'} (${fmtD(h.start)} → ${fmtD(h.end)}) from History?`, 'Delete', () => {
       state.history = state.history.filter(x => x !== h); changed();
     });
     return;
@@ -1142,6 +1190,7 @@ async function addFromTvmaze(tm) {
   const entry = await tmFetch(tm);
   if (!entry.s.length) throw new Error('no episodes');
   state.custom.push(entry);
+  if (!state.lists[entry.id]) state.lists[entry.id] = mode;
   SHOWS = buildShows(state.custom);
   watchArt(showById(entry.id));
   return entry.id;
@@ -1178,7 +1227,7 @@ async function afterLoad() {
   for (const tm of SEEDS) {
     if (state.seeds.includes(tm)) continue;
     try {
-      if (!state.custom.some(c => c.tm === tm)) await addFromTvmaze(tm);
+      if (!state.custom.some(c => c.tm === tm)) { const id = await addFromTvmaze(tm); state.lists[id] = 'watch'; }
       state.seeds.push(tm); changed();
     } catch (e) {}
   }
@@ -1290,6 +1339,7 @@ document.getElementById('addform-form').addEventListener('submit', ev => {
   if (!(rt >= 1 && rt <= 300)) { err.textContent = 'Enter a typical episode length in minutes (1–300).'; return; }
   const id = 'c' + Math.random().toString(36).slice(2, 10).replace(/[^a-z0-9]/g, '').padEnd(6, '0');
   state.custom.push({ id, name, net, eps, rt });
+  state.lists[id] = mode;
   setTimeout(findPosters, 500);
   SHOWS = buildShows(state.custom);
   watchArt(showById(id));
@@ -1336,7 +1386,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds, posters: state.posters } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, seeds: state.seeds, posters: state.posters } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -1401,7 +1451,7 @@ async function flush() {
   if (!ref || writing || !dirty) return;
   writing = true; dirty = false;
   try {
-    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, current: state.current, seeds: state.seeds, posters: state.posters, updated: Date.now() });
+    await ref.set({ shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, seeds: state.seeds, posters: state.posters, updated: Date.now() });
     if (!dirty) setSync('Synced to your account · ' + ((Cloud.user && Cloud.user.email) || ''));
   } catch (e) {
     if (e && e.code === 'permission-denied') { readOnly = true; setSync('Your account refused the save, so changes stay on this device.'); }
@@ -1412,6 +1462,7 @@ async function flush() {
   }
 }
 
+document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
 render();
 
 // ---------- Account sync (Firebase project "ciaran-apps", data at users/<uid>/tvshows/...) ----------
@@ -1441,7 +1492,7 @@ else Cloud.onUser(u => {
       if (!snap.metadata.fromCache) setSync('Synced to your account · ' + (u.email || ''));
     } else if (!snap.metadata.fromCache && firstSnap) {
       // Nothing in your account yet: upload what's on this device.
-      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.current;
+      const hasLocal = Object.values(state.shows).some(m => Object.keys(m).length) || Object.keys(state.started).length || Object.keys(state.ended).length || Object.keys(state.cleared).length || state.history.length || state.custom.length || !!state.cur.watch || !!state.cur.rewatch || Object.keys(state.lists).length;
       if (hasLocal) { dirty = true; flush(); }
       else setSync('Synced to your account · ' + (u.email || ''));
     }
