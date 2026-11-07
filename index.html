@@ -1345,9 +1345,16 @@ function renderList() {
     const left = s => { const st = showStats(s); return st.status === 'done' ? Infinity : st.caught ? 1e9 : st.totalMin - st.wMin; };
     items.sort((a, b) => (left(a) - left(b)) || az(a, b));
   } else {
-    // Watching: newest episode first; finished shows A–Z (at the bottom of All).
-    const D = new Map(items.map(s => [s.id, showStats(s).status === 'done' ? 1 : 0])), L = new Map(items.map(s => [s.id, lastAired(s)]));
-    items.sort((a, b) => (D.get(a.id) - D.get(b.id)) || (D.get(a.id) ? az(a, b) : (L.get(b.id) - L.get(a.id)) || az(a, b)));
+    // Watching, in groups:
+    //   0 episodes to watch (newest episode first) · 1 caught up with a next episode due (soonest first)
+    //   2 caught up, nothing announced (A–Z) · 3 not started (newest episode first) · 4 finished (A–Z)
+    const K = new Map(items.map(s => {
+      const st = showStats(s);
+      const g = st.status === 'done' ? 4 : st.status === 'new' ? 3 : !st.caught ? 0 : st.nextAir ? 1 : 2;
+      const key = g === 0 || g === 3 ? -lastAired(s) : g === 1 ? (st.nextAir.a || 9e15) : 0;
+      return [s.id, [g, key]];
+    }));
+    items.sort((a, b) => { const x = K.get(a.id), y = K.get(b.id); return (x[0] - y[0]) || (x[1] - y[1]) || az(a, b); });
   }
   document.getElementById('list-hint').textContent = `${(FILTERS.find(f => f[0] === filter) || FILTERS[3])[1]} · ${plural(items.length, 'show')}`;
   document.getElementById('list').innerHTML = (items.length ? items.map(s => showHTML(s)).join('')
