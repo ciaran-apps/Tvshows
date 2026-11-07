@@ -635,8 +635,11 @@ function syncModeUI() {
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   document.querySelectorAll('[data-sub]').forEach(b => b.classList.toggle('on', b.dataset.sub === sub));
   document.getElementById('subs').hidden = mode !== 'watch';
+  // Rewatching shows have all aired, so it has no Upcoming tab
   document.querySelector('[data-view="home"]').hidden = mode === 'watch';
+  document.querySelector('[data-view="upcoming"]').hidden = mode === 'rewatch';
   if (mode === 'watch' && !document.getElementById('view-home').hidden) showView('shows');
+  if (mode === 'rewatch' && !document.getElementById('view-upcoming').hidden) showView('home');
 }
 function setMode(m) {
   mode = m === 'watch' ? 'watch' : 'rewatch';
@@ -1410,6 +1413,7 @@ const VIEWS = ['home', 'shows', 'upcoming', 'stats', 'history'];
 function showView(v) {
   if (!VIEWS.includes(v)) v = 'home';
   if (v === 'home' && mode === 'watch') v = 'shows';
+  if (v === 'upcoming' && mode === 'rewatch') v = 'home';
   for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
