@@ -579,7 +579,8 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 // lists: which side a show is on, 'watch' or 'rewatch' (default: the original shows are rewatches, shows you add are watches)
 // cur: the Home show for each side
 // groups: within Watching, 'me' (just me) or 'wife' (with my wife)
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, seeds: [], posters: {}, tmEp: {} };
+// hidden: shows you've hidden { id: true }; they only appear under the Hidden filter (and in search)
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, hidden: {}, seeds: [], posters: {}, tmEp: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'unwatched';   // set properly once the mode is known (see below)
@@ -621,6 +622,9 @@ function sanitize(d) {
   out.groups = {};
   const gs = d && typeof d.groups === 'object' && d.groups ? d.groups : {};
   for (const s of SHOWS) if (gs[s.id] === 'me' || gs[s.id] === 'wife') out.groups[s.id] = gs[s.id];
+  out.hidden = {};
+  const hs = d && typeof d.hidden === 'object' && d.hidden ? d.hidden : {};
+  for (const s of SHOWS) if (hs[s.id] === true) out.hidden[s.id] = true;
   const cr = d && typeof d.cur === 'object' && d.cur ? d.cur : {};
   for (const m of ['watch', 'rewatch']) if (typeof cr[m] === 'string' && SHOWS.some(s => s.id === cr[m])) out.cur[m] = cr[m];
   // Before the Watching / Rewatching toggle there was a single current show
@@ -742,6 +746,8 @@ try { const g = localStorage.getItem(SUB_KEY); if (g === 'me' || g === 'wife') s
 const groupOf = s => state.groups[s.id] === 'wife' ? 'wife' : 'me';
 const inMode = s => listOf(s) === mode && (mode === 'rewatch' || groupOf(s) === sub);
 const modeShows = () => SHOWS.filter(inMode);
+const isHidden = s => !!(state.hidden && state.hidden[s.id]);
+const shownShows = () => modeShows().filter(s => !isHidden(s));
 const rw = () => mode === 'rewatch';
 function setCur(id) { const s = showById(id); if (s) state.cur[listOf(s)] = id; }
 // Watching has no Home tab and no time-taken tracking: its shows depend on when episodes air.
@@ -799,7 +805,7 @@ function upcoming(s, count) {
   return out;
 }
 function pickable() {
-  return modeShows().map(s => ({ s, st: showStats(s) })).filter(x => !x.st.virtual && x.st.status !== 'done');
+  return shownShows().map(s => ({ s, st: showStats(s) })).filter(x => !x.st.virtual && x.st.status !== 'done');
 }
 function suggRow(x, cur) {
   const { s, st } = x;
@@ -918,7 +924,7 @@ const clock = ts => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit'
 function renderUpcoming() {
   const el = document.getElementById('upcoming'); if (!el) return;
   const now = Date.now(), soon = [], tba = [];
-  const airing = modeShows().filter(s => s.tm);
+  const airing = shownShows().filter(s => s.tm);
   for (const s of airing) {
     let tbaN = 0;
     s.seasons.forEach((sea, i) => sea.titles.forEach((t, j) => {
@@ -1159,15 +1165,15 @@ function renderSummary() {
 
 // Unwatched = started, with aired episodes still to see (caught-up shows only appear under All).
 function filterKey(s) { const st = showStats(s); return st.status === 'watching' ? (st.caught ? 'caught' : 'unwatched') : st.status; }
-const FILTERS_W = [['unwatched', 'Unwatched'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
-const FILTERS_R = [['unwatched', 'In progress'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All']];
+const FILTERS_W = [['unwatched', 'Unwatched'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All'], ['hidden', 'Hidden']];
+const FILTERS_R = [['unwatched', 'In progress'], ['new', 'Not started'], ['done', 'Finished'], ['all', 'All'], ['hidden', 'Hidden']];
 let FILTERS = FILTERS_W;
 const defaultFilter = () => rw() ? 'all' : 'unwatched';
 let filterCounts = {};
 function renderTabs() {
   FILTERS = rw() ? FILTERS_R : FILTERS_W;
-  const list = modeShows();
-  const counts = { unwatched: 0, new: 0, done: 0, all: list.length };
+  const list = shownShows();
+  const counts = { unwatched: 0, new: 0, done: 0, all: list.length, hidden: modeShows().length - list.length };
   list.forEach(s => { const k = filterKey(s); if (k in counts) counts[k]++; });
   filterCounts = counts;
   document.getElementById('filter-pop').innerHTML = FILTERS.map(([k, l]) =>
@@ -1253,6 +1259,7 @@ function showHTML(s, where) {
       ${seasons}
       ${st.wEps && !st.virtual ? `<button class="reset" data-reset="${s.id}">Reset progress for ${esc(s.name)}</button>` : ''}
       ${listOf(s) === 'watch' ? `<button class="reset movebtn" data-group="${s.id}">Move to ${groupOf(s) === 'wife' ? GROUPS.me : GROUPS.wife}</button>` : ''}
+      <button class="reset movebtn" data-hide="${s.id}">${isHidden(s) ? 'Unhide this show' : 'Hide this show'}</button>
       <button class="reset movebtn" data-move="${s.id}">Move to ${listOf(s) === 'watch' ? 'Rewatching' : 'Watching'}</button>
       ${tmIdOf(s) ? `<div style="margin-top:8px"><a class="tmlink" href="https://www.tvmaze.com/shows/${tmIdOf(s)}" target="_blank" rel="noopener">View ${esc(s.name)} on TVmaze ↗</a></div>` : ''}
       ${s.custom ? `<button class="reset" data-rmshow="${s.id}">Remove ${esc(s.name)} from the tracker</button>` : ''}
@@ -1335,7 +1342,7 @@ function renderList() {
   if (searching) { pillOff = false; return renderSearch(); }
   // The filter already says what state these shows are in, so their cards skip the status pill (Watching only).
   pillOff = !rw() && filter !== 'all';
-  const items = modeShows().filter(s => filter === 'all' || filterKey(s) === filter);
+  const items = filter === 'hidden' ? modeShows().filter(isHidden) : shownShows().filter(s => filter === 'all' || filterKey(s) === filter);
   const az = (a, b) => a.name.localeCompare(b.name);
   if (rw()) {
     // Rewatching: shortest time left first; finished shows go to the bottom.
@@ -1355,7 +1362,7 @@ function renderList() {
   }
   document.getElementById('list-hint').textContent = `${(FILTERS.find(f => f[0] === filter) || FILTERS[3])[1]} · ${plural(items.length, 'show')}`;
   document.getElementById('list').innerHTML = (items.length ? items.map(s => showHTML(s)).join('')
-    : `<div class="empty">Nothing here yet.</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
+    : `<div class="empty">${filter === 'hidden' ? 'No hidden shows. Open a show and tap “Hide this show” to tuck it away here.' : 'Nothing here yet.'}</div>`) + `<button class="addbtn" data-addshow="1">＋ Add a show</button>`;
 }
 // Only the tab on screen is redrawn; the others are drawn when you switch to them (quicker with hundreds of shows).
 let curView = 'home';
@@ -1433,6 +1440,18 @@ document.addEventListener('click', ev => {
     state.groups[s.id] = from === 'wife' ? 'me' : 'wife';
     open.delete(s.id); changed();
     toast(`Moved ${s.name} to ${GROUPS[state.groups[s.id]]}`, () => { state.groups[s.id] = from; changed(); });
+    return;
+  }
+  if (t.dataset.hide) {
+    const s = showById(t.dataset.hide); if (!s) return;
+    const was = isHidden(s), cur = state.cur[listOf(s)];
+    if (was) delete state.hidden[s.id];
+    else { state.hidden[s.id] = true; if (cur === s.id) state.cur[listOf(s)] = null; }
+    open.delete(s.id); changed();
+    toast(was ? `${s.name} is back in your list` : `Hid ${s.name}`, () => {
+      if (was) state.hidden[s.id] = true; else { delete state.hidden[s.id]; if (cur === s.id) state.cur[listOf(s)] = cur; }
+      changed();
+    });
     return;
   }
   if (t.dataset.move) {
@@ -1815,7 +1834,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, hidden: state.hidden, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -2065,7 +2084,7 @@ function recordsFromState() {
   const out = new Map(), tmIds = [], manual = [];
   for (const c of state.custom) (c.kind === 'tm' ? tmIds : manual).push(c.kind === 'tm' ? c.id : c);
   out.set('progress', { v: 2, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: manual, tmIds,
-    cur: state.cur, lists: state.lists, groups: state.groups, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp });
+    cur: state.cur, lists: state.lists, groups: state.groups, hidden: state.hidden, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp });
   const ids = new Set(tmIds);
   for (const id in state.shows) if (Object.keys(state.shows[id]).length) ids.add(id);
   for (const id of ids) out.set('s-' + id, { t: state.shows[id] || {}, d: state.custom.find(c => c.id === id && c.kind === 'tm') || null });
