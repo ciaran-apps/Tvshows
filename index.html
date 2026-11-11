@@ -43,9 +43,28 @@
   .sync-pop{padding:12px 14px;max-width:280px}
   .sync{font-size:13px;color:var(--text);line-height:1.45;word-break:break-word}
   #signout{margin-top:10px;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600}
-  .lists{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px;margin-bottom:12px}
-  .lists button{background:none;border:0;border-radius:99px;padding:8px 2px;font-size:13.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+  .lists{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px;margin-bottom:12px}
+  .lists button{background:none;border:0;border-radius:99px;padding:8px 1px;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
   .lists button.on{background:var(--accent);color:#16141c}
+  .pod-top{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+  .pod-top h2{margin:0 0 2px;font-size:17px;color:var(--text);text-transform:none;letter-spacing:0}
+  .pod-top .pod-sum{color:var(--muted);font-size:13px}
+  .pod-top .pod-sum b{color:var(--accent)}
+  .pod-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .pod-acts .sbtn{margin:0}
+  .pod-acts small{color:var(--muted);font-size:11.5px;flex-basis:100%}
+  .pod-chip{background:none;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:6px 11px;font-size:12.5px;font-weight:600}
+  .pod-chip.on{border-color:var(--accent);color:var(--accent);background:#a998f51a}
+  .pod-err{color:#e5a073;font-size:13px;margin-top:8px;line-height:1.4}
+  .pep{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px;color:var(--text);font:inherit}
+  .pep .pk{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;color:transparent;font-size:13px;font-weight:800}
+  .pep.done .pk{background:var(--accent);border-color:var(--accent);color:#16141c}
+  .pep.done .pt{color:var(--muted)}
+  .pep .pi{flex:1;min-width:0}
+  .pep .pt{display:block;font-size:14px;font-weight:600;line-height:1.3}
+  .pep .pn{color:var(--accent);font-weight:700;margin-right:5px}
+  .pep .pm{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+  .pod-more{display:block;width:100%;margin:8px 0;background:none;border:1px dashed var(--line);color:var(--accent);border-radius:12px;padding:11px;font-weight:600}
   .list-hint{font-size:12px;color:var(--muted);margin:0 2px 10px}
 
   .summary{background:linear-gradient(135deg,#2b2440,#201d28);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
@@ -81,7 +100,7 @@
   .movebtn{color:var(--accent)!important;opacity:1!important}
   .views{position:fixed;left:0;right:0;bottom:0;z-index:12;display:flex;justify-content:center;background:#16141cf2;border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
   .views button{flex:1;max-width:150px;min-width:0;background:none;border:0;padding:4px 2px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
-  .views button[hidden]{display:none}
+  .views button[hidden],.views[hidden]{display:none}
   .views button svg{width:23px;height:23px}
   .views button.on{color:var(--accent)}
   #view-stats,#view-history,#view-upcoming{margin-top:14px}
@@ -315,6 +334,7 @@
   <button data-sub="me">My Shows</button>
   <button data-sub="wife">With Hazey</button>
   <button data-mode="rewatch">Rewatching</button>
+  <button data-pod="1">Podcast</button>
 </div>
 <nav class="views" id="views">
   <button data-view="home" class="on"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.8V19h12V9.8"/></svg><span>Home</span></button>
@@ -369,6 +389,9 @@
 </div>
 <div id="view-history" hidden>
   <section id="history"></section>
+</div>
+<div id="view-podcast" hidden>
+  <section id="podcast"></section>
 </div>
 
 <div class="toast" id="toast" hidden role="status"><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
@@ -580,7 +603,7 @@ const okPoster = u => typeof u === 'string' && /^https:\/\/static\.tvmaze\.com\/
 // cur: the Home show for each side
 // groups: within Watching, 'me' (just me) or 'wife' (with my wife)
 // hidden: shows you've hidden { id: true }; they only appear under the Hidden filter (and in search)
-let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, hidden: {}, seeds: [], posters: {}, tmEp: {} };
+let state = { shows: {}, started: {}, ended: {}, cleared: {}, history: [], custom: [], current: null, cur: { watch: null, rewatch: null }, lists: {}, groups: {}, hidden: {}, seeds: [], posters: {}, tmEp: {}, pod: {} };
 const open = new Set();
 const seasonOpen = new Map();   // "showId|season" -> expanded?
 let filter = 'unwatched';   // set properly once the mode is known (see below)
@@ -656,6 +679,11 @@ function sanitize(d) {
     out.history.push({ h: typeof h.h === 'string' ? h.h.slice(0, 20) : Math.random().toString(36).slice(2, 10),
       id: h.id, start: h.start, end: h.end, eps: Math.max(0, +h.eps || 0), min: Math.max(0, +h.min || 0), m: h.m === 'watch' ? 'watch' : 'rewatch' });
   }
+  // Podcast episodes ticked: key (n<number> or t<title hash>) → when ticked
+  out.pod = {};
+  const pd = d && typeof d.pod === 'object' && d.pod ? d.pod : {};
+  let pn = 0;
+  for (const k in pd) if (/^[nt][a-z0-9]{1,40}$/.test(k) && typeof pd[k] === 'number' && isFinite(pd[k]) && pd[k] > 0 && pn++ < 5000) out.pod[k] = pd[k];
   const src = d && typeof d.shows === 'object' && d.shows ? d.shows : {};
   for (const s of SHOWS) {
     const m = src[s.id]; if (!m || typeof m !== 'object') continue;
@@ -751,22 +779,44 @@ const shownShows = () => modeShows().filter(s => !isHidden(s));
 const rw = () => mode === 'rewatch';
 function setCur(id) { const s = showById(id); if (s) state.cur[listOf(s)] = id; }
 // Watching has no Home tab and no time-taken tracking: its shows depend on when episodes air.
+// Podcast is a page of its own, shown over the TV views (mode stays as it was underneath).
+const POD_KEY = 'tvshows.podon';
+let podOn = false;
+try { podOn = localStorage.getItem(POD_KEY) === '1'; } catch (e) {}
 function syncModeUI() {
-  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  document.querySelectorAll('.lists [data-sub]').forEach(b => b.classList.toggle('on', mode === 'watch' && b.dataset.sub === sub));
+  document.querySelectorAll('.lists [data-mode]').forEach(b => b.classList.toggle('on', !podOn && b.dataset.mode === mode));
+  document.querySelectorAll('.lists [data-sub]').forEach(b => b.classList.toggle('on', !podOn && mode === 'watch' && b.dataset.sub === sub));
+  document.querySelector('.lists [data-pod]').classList.toggle('on', podOn);
+  applyPod();
   // Rewatching shows have all aired, so it has no Upcoming tab
   document.querySelector('[data-view="home"]').hidden = mode === 'watch';
   document.querySelector('[data-view="upcoming"]').hidden = mode === 'rewatch';
   if (mode === 'watch' && !document.getElementById('view-home').hidden) showView('shows');
   if (mode === 'rewatch' && !document.getElementById('view-upcoming').hidden) showView('home');
 }
+function setPod(on) {
+  podOn = !!on;
+  try { localStorage.setItem(POD_KEY, podOn ? '1' : '0'); } catch (e) {}
+  syncModeUI();
+  if (podOn) { window.scrollTo(0, 0); renderPod(); podAutoRefresh(); } else render();
+}
+function applyPod() {
+  const pv = document.getElementById('view-podcast'); if (!pv) return;
+  pv.hidden = !podOn;
+  document.getElementById('views').hidden = podOn;
+  for (const x of VIEWS) document.getElementById('view-' + x).hidden = podOn || x !== curView;
+  if (podOn) document.getElementById('btn-search').hidden = document.getElementById('btn-filter').hidden = true;
+  else document.getElementById('btn-search').hidden = document.getElementById('btn-filter').hidden = curView !== 'shows';
+}
 function setMode(m) {
+  podOn = false; try { localStorage.setItem(POD_KEY, '0'); } catch (e) {}
   mode = m === 'watch' ? 'watch' : 'rewatch';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
   filter = defaultFilter();
   syncModeUI(); render();
 }
 function setSub(g) {
+  podOn = false; try { localStorage.setItem(POD_KEY, '0'); } catch (e) {}
   sub = g === 'wife' ? 'wife' : 'me';
   try { localStorage.setItem(SUB_KEY, sub); } catch (e) {}
   if (mode !== 'watch') { mode = 'watch'; try { localStorage.setItem(MODE_KEY, mode); } catch (e) {} }
@@ -1367,7 +1417,7 @@ function renderList() {
 // Only the tab on screen is redrawn; the others are drawn when you switch to them (quicker with hundreds of shows).
 let curView = 'home';
 const RENDER = { home: () => renderHome(), shows: () => { renderTabs(); renderList(); }, upcoming: () => renderUpcoming(), stats: () => renderSummary(), history: () => renderHistory() };
-function render() { statsVer++; (RENDER[curView] || RENDER.shows)(); }
+function render() { statsVer++; if (podOn) return renderPod(); (RENDER[curView] || RENDER.shows)(); }
 
 // ---------- Interaction ----------
 // The current rewatch's start date is recorded the first time you tick an episode (or tap "Start rewatch today").
@@ -1432,6 +1482,7 @@ document.addEventListener('click', ev => {
     changed(); return;
   }
   if (t.dataset.startnow) { state.started[t.dataset.startnow] = Date.now(); setCur(t.dataset.startnow); changed(); return; }
+  if (t.dataset.pod) { setPod(true); return; }
   if (t.dataset.mode) { setMode(t.dataset.mode); return; }
   if (t.dataset.sub) { setSub(t.dataset.sub); return; }
   if (t.dataset.group) {
@@ -1791,14 +1842,145 @@ document.addEventListener('change', ev => {
 });
 
 const VIEWS = ['home', 'shows', 'upcoming', 'stats', 'history'];
+// ---------- Podcast: The Tim Dillon Show ----------
+// Episode list from Audioboom (where the show is hosted), falling back to its RSS feed, then Apple Podcasts.
+// The list is public data, kept on this device; the episodes you tick sync with your account.
+const POD = { name: 'The Tim Dillon Show', audioboom: 5093219 };
+const POD_CACHE = 'tvshows.pod.eps';
+let podData = null, podBusy = false, podErr = '', podShow = 100, podHideDone = false;
+try { const c = JSON.parse(localStorage.getItem(POD_CACHE) || 'null'); if (c && Array.isArray(c.eps)) podData = c; } catch (e) {}
+const podHash = t => { let h = 2166136261; for (const ch of t) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); };
+// "Teen Takeovers & … | The Tim Dillon Show #503", "503 - Title", "#503 - Title", "Ep 503: Title"
+function podParse(raw) {
+  let t = String(raw || '').replace(/\s+/g, ' ').trim(), n = null, m;
+  if ((m = t.match(/^(.*?)\s*[|–—-]\s*The Tim Dillon Show\s*(?:#|Ep\.?\s*|Episode\s*)?(\d{1,4})\s*$/i))) { t = m[1]; n = +m[2]; }
+  else if ((m = t.match(/^(?:#|Ep(?:isode)?\.?\s*)?(\d{1,4})\s*[-–—:|.]\s*(.+)$/i))) { n = +m[1]; t = m[2]; }
+  else if ((m = t.match(/#(\d{1,4})\b/))) { n = +m[1]; t = t.replace(m[0], ''); }
+  t = t.replace(/\s*[|–—-]?\s*The Tim Dillon Show\s*$/i, '').replace(/^\s*[|–—:-]\s*|\s*[|–—:-]\s*$/g, '').trim() || String(raw).trim();
+  return { n, t };
+}
+const podKey = ep => ep.n != null ? 'n' + ep.n : 't' + podHash(ep.t.toLowerCase().replace(/[^a-z0-9]/g, '')).slice(0, 12);
+function podEp(title, date, secs) {
+  const { n, t } = podParse(title), a = Date.parse(date);
+  const ep = { n, t: t.slice(0, 200), a: isFinite(a) ? a : null, d: secs > 0 ? Math.round(secs) : null };
+  ep.k = podKey(ep); return ep;
+}
+async function podFetch(url, kind) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
+  try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); return kind === 'json' ? await r.json() : await r.text(); }
+  finally { clearTimeout(timer); }
+}
+async function podFromAudioboom() {
+  const eps = [];
+  for (let page = 1; page <= 12; page++) {
+    const j = await podFetch(`https://api.audioboom.com/channels/${POD.audioboom}/audio_clips?page[items]=150&page[number]=${page}`, 'json');
+    const clips = (j && j.body && j.body.audio_clips) || [];
+    for (const c of clips) eps.push(podEp(c.title, c.uploaded_at || c.recorded_at, +c.duration));
+    if (clips.length < 150) break;
+  }
+  if (!eps.length) throw new Error('no episodes');
+  return eps;
+}
+async function podFromRss() {
+  const xml = new DOMParser().parseFromString(await podFetch(`https://audioboom.com/channels/${POD.audioboom}.rss`, 'text'), 'text/xml');
+  const dur = v => { if (!v) return 0; const p = v.split(':').map(Number); return p.reduce((a, x) => a * 60 + (x || 0), 0); };
+  const eps = [...xml.querySelectorAll('item')].map(it => {
+    const g = tag => { const el = it.getElementsByTagName(tag)[0]; return el ? el.textContent : ''; };
+    return podEp(g('title'), g('pubDate'), dur(g('itunes:duration')));
+  });
+  if (!eps.length) throw new Error('no episodes');
+  return eps;
+}
+function jsonp(url) {
+  return new Promise((res, rej) => {
+    const cb = 'podcb' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), sc = document.createElement('script');
+    const done = () => { delete window[cb]; sc.remove(); clearTimeout(t); };
+    const t = setTimeout(() => { done(); rej(new Error('timeout')); }, 20000);
+    window[cb] = d => { done(); res(d); };
+    sc.onerror = () => { done(); rej(new Error('blocked')); };
+    sc.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    document.head.appendChild(sc);
+  });
+}
+async function podFromApple() {
+  const sr = await jsonp('https://itunes.apple.com/search?term=' + encodeURIComponent(POD.name) + '&media=podcast&entity=podcast&limit=15');
+  const list = (sr && sr.results) || [];
+  const hit = list.find(r => /audioboom\.com\/channels\/5093219/.test(r.feedUrl || '')) ||
+    list.filter(r => (r.collectionName || '').toLowerCase() === POD.name.toLowerCase()).sort((a, b) => (b.trackCount || 0) - (a.trackCount || 0))[0];
+  if (!hit) throw new Error('not found');
+  const lr = await jsonp(`https://itunes.apple.com/lookup?id=${hit.collectionId}&entity=podcastEpisode&limit=200`);
+  const eps = ((lr && lr.results) || []).filter(r => r.wrapperType === 'podcastEpisode' || r.kind === 'podcast-episode')
+    .map(r => podEp(r.trackName, r.releaseDate, (r.trackTimeMillis || 0) / 1000));
+  if (!eps.length) throw new Error('no episodes');
+  return eps;
+}
+async function podRefresh(quiet) {
+  if (podBusy) return;
+  podBusy = true; podErr = ''; if (podOn) renderPod();
+  let eps = null, src = '';
+  for (const [name, fn] of [['Audioboom', podFromAudioboom], ['Audioboom RSS', podFromRss], ['Apple Podcasts', podFromApple]]) {
+    try { eps = await fn(); src = name; break; } catch (e) { console.warn('Podcast source failed:', name, e); }
+  }
+  podBusy = false;
+  if (eps) {
+    const seen = new Set(), clean = [];
+    for (const ep of eps.sort((a, b) => (b.a || 0) - (a.a || 0))) { if (seen.has(ep.k)) continue; seen.add(ep.k); clean.push(ep); }
+    const before = podData ? podData.eps.length : 0;
+    podData = { at: Date.now(), src, eps: clean };
+    try { localStorage.setItem(POD_CACHE, JSON.stringify(podData)); } catch (e) {}
+    if (!quiet && before && clean.length > before) toast(plural(clean.length - before, 'new episode'));
+  } else podErr = 'Couldn’t load the episode list. Check your connection and tap Refresh to try again.';
+  if (podOn) renderPod();
+}
+function podAutoRefresh() { if (!podData || Date.now() - podData.at > 3 * 3600e3) podRefresh(true); }
+const podDur = sec => sec ? fmtH(sec / 60) : '';
+function renderPod() {
+  const el = document.getElementById('podcast'); if (!el) return;
+  const eps = podData ? podData.eps : [], done = state.pod || {};
+  const heard = eps.filter(e => done[e.k]).length, left = eps.length - heard;
+  const list = podHideDone ? eps.filter(e => !done[e.k]) : eps;
+  const ago = podData ? (() => { const m = Math.round((Date.now() - podData.at) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + 'h ago' : fmtD(podData.at); })() : '';
+  el.innerHTML = `<div class="pod-top">
+      <h2>${esc(POD.name)}</h2>
+      <div class="pod-sum">${eps.length ? `${plural(eps.length, 'episode')} · <b>${left}</b> to listen to` : podBusy ? 'Loading episodes…' : 'No episodes loaded yet'}</div>
+      <div class="pod-acts">
+        <button class="sbtn" data-podrefresh="1"${podBusy ? ' disabled' : ''}>${podBusy ? 'Refreshing…' : '⟳ Refresh'}</button>
+        ${eps.length ? `<button class="pod-chip${podHideDone ? ' on' : ''}" data-podhide="1">${podHideDone ? '✓ ' : ''}Hide listened</button>` : ''}
+        ${podData ? `<small>Updated ${ago} · from ${esc(podData.src)}</small>` : ''}
+      </div>
+      ${podErr ? `<div class="pod-err">${podErr}</div>` : ''}
+    </div>
+    ${list.slice(0, podShow).map(e => `<button class="pep${done[e.k] ? ' done' : ''}" data-podep="${e.k}" aria-pressed="${!!done[e.k]}">
+      <span class="pk">✓</span><span class="pi"><span class="pt">${e.n != null ? `<span class="pn">#${e.n}</span>` : ''}${esc(e.t)}</span>
+      <span class="pm">${e.a ? new Date(e.a).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : 'Date unknown'}${e.d ? ' · ' + podDur(e.d) : ''}</span></span></button>`).join('')}
+    ${list.length > podShow ? `<button class="pod-more" data-podmore="1">Show more (${list.length - podShow} older)</button>` : ''}
+    ${eps.length && !list.length ? '<div class="empty small">You’re all caught up. 🎉</div>' : ''}`;
+}
+document.getElementById('podcast').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.podrefresh) return podRefresh(false);
+  if (b.dataset.podhide) { podHideDone = !podHideDone; return renderPod(); }
+  if (b.dataset.podmore) { podShow += 100; return renderPod(); }
+  const k = b.dataset.podep; if (!k) return;
+  if (!state.pod) state.pod = {};
+  if (state.pod[k]) { delete state.pod[k]; changed(); return; }
+  state.pod[k] = Date.now(); changed();
+  // Offer to tick the older ones too, for catching up after a break
+  const eps = podData ? podData.eps : [], i = eps.findIndex(e => e.k === k);
+  const older = i < 0 ? [] : eps.slice(i + 1).filter(e => !state.pod[e.k]);
+  if (older.length) toast(`Ticked. ${plural(older.length, 'older episode')} not ticked.`, () => {
+    for (const e of older) state.pod[e.k] = UNKNOWN; changed();
+    toast(`Ticked ${plural(older.length, 'older episode')}`);
+  }, 'Tick all older');
+});
 function showView(v) {
   if (!VIEWS.includes(v)) v = 'home';
   if (v === 'home' && mode === 'watch') v = 'shows';
   if (v === 'upcoming' && mode === 'rewatch') v = 'home';
-  for (const x of VIEWS) document.getElementById('view-' + x).hidden = x !== v;
+  for (const x of VIEWS) document.getElementById('view-' + x).hidden = podOn || x !== v;
   if (curView !== v) { curView = v; if (typeof statsVer !== 'undefined') RENDER[v](); }
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === v));
-  document.getElementById('btn-search').hidden = document.getElementById('btn-filter').hidden = v !== 'shows';
+  document.getElementById('btn-search').hidden = document.getElementById('btn-filter').hidden = podOn || v !== 'shows';
   closePops();
   try { if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v); } catch (e) {}
 }
@@ -1806,10 +1988,11 @@ showView(location.hash.slice(1));
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 
 let toastTimer = null, toastUndo = null;
-function toast(text, undo) {
+function toast(text, undo, label) {
   const el = document.getElementById('toast');
   document.getElementById('toast-text').textContent = text;
   toastUndo = undo || null;
+  document.getElementById('toast-undo').textContent = label || 'Undo';
   document.getElementById('toast-undo').hidden = !undo;
   el.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; toastUndo = null; }, 4500);
@@ -1834,7 +2017,7 @@ document.getElementById('myes').onclick = () => {
 
 // ---------- Backup (copy / download / import) ----------
 function backupText() {
-  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, hidden: state.hidden, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp } });
+  return JSON.stringify({ app: 'tvshows', v: 1, exported: Date.now(), state: { shows: state.shows, started: state.started, ended: state.ended, cleared: state.cleared, history: state.history, custom: state.custom, cur: state.cur, lists: state.lists, groups: state.groups, hidden: state.hidden, seeds: state.seeds, posters: state.posters, tmEp: state.tmEp, pod: state.pod } });
 }
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 if (IN_CLAUDE) document.getElementById('bk-download').hidden = true;   // downloads aren't allowed inside claude.ai
@@ -2088,6 +2271,7 @@ function recordsFromState() {
   const ids = new Set(tmIds);
   for (const id in state.shows) if (Object.keys(state.shows[id]).length) ids.add(id);
   for (const id of ids) out.set('s-' + id, { t: state.shows[id] || {}, d: state.custom.find(c => c.id === id && c.kind === 'tm') || null });
+  if (state.pod && Object.keys(state.pod).length) out.set('pod', { t: state.pod });
   return out;
 }
 function stateFromRecords(docs) {
@@ -2104,7 +2288,8 @@ function stateFromRecords(docs) {
   const order = Array.isArray(p.tmIds) ? p.tmIds : [];
   const tm = order.filter(id => tmById.has(id)).map(id => tmById.get(id));
   for (const [id, d] of tmById) if (!order.includes(id)) tm.push(d);
-  return { ...p, shows, custom: (Array.isArray(p.custom) ? p.custom : []).concat(tm) };
+  const pod = docs.get('pod');
+  return { ...p, shows, pod: pod && pod.t && typeof pod.t === 'object' ? pod.t : {}, custom: (Array.isArray(p.custom) ? p.custom : []).concat(tm) };
 }
 
 function changed() {
@@ -2140,6 +2325,7 @@ async function flush() {
 }
 
 syncModeUI();
+if (podOn) podAutoRefresh();
 render();
 
 // ---------- Account sync (Firebase project "ciaran-apps", data at users/<uid>/tvshows/...) ----------
