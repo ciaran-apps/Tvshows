@@ -1298,7 +1298,7 @@ function showHTML(s, where) {
       <div class="row1"><div><div class="name">${esc(s.name)}</div>
         <div class="meta">${where ? `<span class="where">${where}</span> · ` : ''}${esc(s.net)} · ${plural(s.seasons.length, 'season')} · ${st.totalEps} eps${st.unaired ? ' aired' : ''} · ~${fmtH(st.totalMin)}</div></div>${pillHTML}</div>
       <div class="bar${st.status === 'done' ? ' done' : ''}"><i style="width:${pct}%"></i></div>
-      <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : st.caught ? (st.nextAir && st.nextAir.a ? 'Next ' + airLabel(st.nextAir.a).slice(5) : 'Caught up') : fmtH(st.totalMin - st.wMin) + ' left'}</span></div>
+      <div class="row2"><span><b>${st.wEps}</b>/${st.totalEps} episodes</span><span>${st.status === 'done' ? 'All done' : st.caught ? (st.nextAir && st.nextAir.a ? 'Next ' + airLabel(st.nextAir.a).slice(5) : 'Caught up') : `${plural(st.totalEps - st.wEps, 'ep')} · ${fmtH(st.totalMin - st.wMin)} left`}</span></div>
     </div></div></button>
     <div class="body">
       <div class="picrow"><label>${art[s.id] ? 'Change picture' : posterOf(s) ? 'Use my own picture' : 'Add picture'}<input type="file" accept="image/*" data-pic="${s.id}"></label>${art[s.id] ? `<button data-unpic="${s.id}">${posterOf(s) ? 'Back to poster' : 'Remove picture'}</button>` : ''}</div>
